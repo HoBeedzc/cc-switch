@@ -1,0 +1,52 @@
+{
+  "name": "cc-switch",
+  "version": "1.0.0",
+  "description": "Claude Code configuration switcher - manage and switch between different Claude Code configurations",
+  "main": "index.js",
+  "bin": {
+    "cc-switch": "./bin/cc-switch"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "build": "npm run build:go",
+    "build:go": "bash scripts/build.sh",
+    "test": "go test ./...",
+    "clean": "rm -rf bin/"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "configuration",
+    "switcher",
+    "cli",
+    "tool"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cc-switch.git"
+  },
+  "homepage": "https://github.com/yourusername/cc-switch#readme",
+  "bugs": {
+    "url": "https://github.com/yourusername/cc-switch/issues"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
