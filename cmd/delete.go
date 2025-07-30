@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	"cc-switch/internal/config"
-	"cc-switch/internal/interactive"
+	"cc-switch/internal/handler"
+	"cc-switch/internal/ui"
 
 	"github.com/spf13/cobra"
 )
@@ -25,100 +26,88 @@ The interactive mode allows you to browse and select configurations with arrow k
 			return err
 		}
 
+		// Initialize dependencies
 		cm, err := config.NewConfigManager()
 		if err != nil {
 			return fmt.Errorf("failed to initialize config manager: %w", err)
 		}
 
-		// 检测执行模式
+		configHandler := handler.NewConfigHandler(cm)
 		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
-		mode := interactive.DetectMode(interactiveFlag, args)
+		force, _ := cmd.Flags().GetBool("force")
 
-		switch mode {
-		case interactive.Interactive:
-			return handleInteractiveDelete(cm)
-		case interactive.CLI:
-			force, _ := cmd.Flags().GetBool("force")
-			return handleCLIDelete(cm, args[0], force)
+		// Create UI provider based on mode
+		var uiProvider ui.UIProvider
+		if ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
+			uiProvider = ui.NewInteractiveUI()
+		} else {
+			uiProvider = ui.NewCLIUI()
 		}
 
-		return nil
+		// Execute delete operation
+		return executeDelete(configHandler, uiProvider, args, force)
 	},
 }
 
-// handleInteractiveDelete 处理交互式删除
-func handleInteractiveDelete(cm *config.ConfigManager) error {
-	// 获取所有配置
-	profiles, err := cm.ListProfiles()
+// executeDelete handles the delete operation with the given dependencies
+func executeDelete(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, force bool) error {
+	// Get all configurations
+	profiles, err := configHandler.ListConfigs()
 	if err != nil {
 		return fmt.Errorf("failed to list profiles: %w", err)
 	}
 
 	if len(profiles) == 0 {
-		interactive.ShowWarning("No configurations found.")
+		uiProvider.ShowWarning("No configurations found.")
 		fmt.Println("Use 'cc-switch new <name>' to create your first configuration.")
 		return nil
 	}
 
-	// 过滤掉当前配置（不能删除当前配置）
-	var deletableProfiles []config.Profile
-	for _, profile := range profiles {
-		if !profile.IsCurrent {
-			deletableProfiles = append(deletableProfiles, profile)
+	var targetName string
+
+	// Determine execution mode
+	if len(args) == 0 {
+		// Interactive mode - filter out current config (cannot delete current)
+		var deletableProfiles []config.Profile
+		for _, profile := range profiles {
+			if !profile.IsCurrent {
+				deletableProfiles = append(deletableProfiles, profile)
+			}
 		}
+
+		if len(deletableProfiles) == 0 {
+			uiProvider.ShowWarning("No configurations available for deletion.")
+			fmt.Println("The current configuration cannot be deleted. Switch to another configuration first.")
+			return nil
+		}
+
+		// Select configuration interactively
+		selected, err := uiProvider.SelectConfiguration(deletableProfiles, "delete")
+		if err != nil {
+			return fmt.Errorf("selection cancelled: %w", err)
+		}
+		targetName = selected.Name
+	} else {
+		// CLI mode
+		targetName = args[0]
 	}
 
-	if len(deletableProfiles) == 0 {
-		interactive.ShowWarning("No configurations available for deletion.")
-		fmt.Println("The current configuration cannot be deleted. Switch to another configuration first.")
-		return nil
-	}
-
-	// 显示选择界面
-	selector := interactive.NewInteractiveSelector(deletableProfiles, "delete")
-	selected, err := selector.Show()
-	if err != nil {
-		return fmt.Errorf("selection cancelled: %w", err)
-	}
-
-	// 确认删除
-	confirmMsg := fmt.Sprintf("Are you sure you want to delete configuration '%s'?", selected.Name)
-	if !interactive.ConfirmAction(confirmMsg, false) {
-		interactive.ShowInfo("Operation cancelled")
-		return nil
-	}
-
-	// 执行删除
-	if err := cm.DeleteProfile(selected.Name); err != nil {
-		return fmt.Errorf("failed to delete configuration: %w", err)
-	}
-
-	interactive.ShowSuccess("Configuration '%s' deleted successfully", selected.Name)
-	return nil
-}
-
-// handleCLIDelete 处理命令行删除
-func handleCLIDelete(cm *config.ConfigManager, name string, force bool) error {
-	// 检查配置是否存在
-	if !cm.ProfileExists(name) {
-		return fmt.Errorf("configuration '%s' does not exist", name)
-	}
-
-	// 如果没有force标志，请求确认
+	// Confirm deletion if not forced
 	if !force {
-		confirmMsg := fmt.Sprintf("Are you sure you want to delete configuration '%s'?", name)
-		if !interactive.ConfirmAction(confirmMsg, false) {
-			interactive.ShowInfo("Operation cancelled")
+		confirmMsg := fmt.Sprintf("Are you sure you want to delete configuration '%s'?", targetName)
+		if !uiProvider.ConfirmAction(confirmMsg, false) {
+			uiProvider.ShowInfo("Operation cancelled")
 			return nil
 		}
 	}
 
-	// 删除配置
-	if err := cm.DeleteProfile(name); err != nil {
+	// Execute deletion
+	if err := configHandler.DeleteConfig(targetName, force); err != nil {
+		uiProvider.ShowError(err)
 		return err
 	}
 
-	interactive.ShowSuccess("Configuration '%s' deleted successfully", name)
+	uiProvider.ShowSuccess("Configuration '%s' deleted successfully", targetName)
 	return nil
 }
 

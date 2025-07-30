@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	"cc-switch/internal/config"
-	"cc-switch/internal/interactive"
+	"cc-switch/internal/handler"
+	"cc-switch/internal/ui"
 
 	"github.com/spf13/cobra"
 )
@@ -29,26 +30,67 @@ The interactive mode allows you to browse and select configurations with arrow k
 			return err
 		}
 
+		// Initialize dependencies
 		cm, err := config.NewConfigManager()
 		if err != nil {
 			return fmt.Errorf("failed to initialize config manager: %w", err)
 		}
 
-		// 检测执行模式
+		configHandler := handler.NewConfigHandler(cm)
 		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
-		mode := interactive.DetectMode(interactiveFlag, args)
+		raw, _ := cmd.Flags().GetBool("raw")
 
-		switch mode {
-		case interactive.Interactive:
-			raw, _ := cmd.Flags().GetBool("raw")
-			return handleInteractiveView(cm, raw)
-		case interactive.CLI:
-			raw, _ := cmd.Flags().GetBool("raw")
-			return handleCLIView(cm, args[0], raw)
+		// Create UI provider based on mode
+		var uiProvider ui.UIProvider
+		if ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
+			uiProvider = ui.NewInteractiveUI()
+		} else {
+			uiProvider = ui.NewCLIUI()
 		}
 
-		return nil
+		// Execute view operation
+		return executeView(configHandler, uiProvider, args, raw)
 	},
+}
+
+// executeView handles the view operation with the given dependencies
+func executeView(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, raw bool) error {
+	// Get all configurations
+	profiles, err := configHandler.ListConfigs()
+	if err != nil {
+		return fmt.Errorf("failed to list profiles: %w", err)
+	}
+
+	if len(profiles) == 0 {
+		uiProvider.ShowWarning("No configurations found.")
+		fmt.Println("Use 'cc-switch new <name>' to create your first configuration.")
+		return nil
+	}
+
+	var targetName string
+
+	// Determine execution mode
+	if len(args) == 0 {
+		// Interactive mode
+		selected, err := uiProvider.SelectConfiguration(profiles, "view")
+		if err != nil {
+			return fmt.Errorf("selection cancelled: %w", err)
+		}
+		targetName = selected.Name
+	} else {
+		// CLI mode
+		targetName = args[0]
+	}
+
+	// Get configuration view
+	view, err := configHandler.ViewConfig(targetName, raw)
+	if err != nil {
+		uiProvider.ShowError(err)
+		return err
+	}
+
+	// Display configuration
+	return uiProvider.DisplayConfiguration(view, raw)
 }
 
 func init() {
