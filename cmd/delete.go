@@ -16,7 +16,28 @@ var deleteCmd = &cobra.Command{
 	Use:   "delete <name>",
 	Short: "Delete a configuration",
 	Long:  `Delete the specified configuration. You cannot delete the currently active configuration.`,
-	Args:  cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 1 {
+			return fmt.Errorf(`Missing required argument: configuration name
+
+Usage: cc-switch delete <name>
+
+Example: cc-switch delete old-config
+
+Use 'cc-switch list' to see available configurations.
+Use 'cc-switch delete --help' for more information.`)
+		}
+		if len(args) > 1 {
+			return fmt.Errorf(`Too many arguments provided
+
+Usage: cc-switch delete <name>
+
+Example: cc-switch delete old-config
+
+Use 'cc-switch delete --help' for more information.`)
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
