@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"cc-switch/internal/config"
+	"cc-switch/internal/interactive"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -19,41 +20,24 @@ var (
 )
 
 var editCmd = &cobra.Command{
-	Use:   "edit <name>",
+	Use:   "edit [name]",
 	Short: "Edit configuration content",
 	Long: `Edit the content of a specified configuration using your system editor.
-	
+
+Modes:
+- Interactive: cc-switch edit (no arguments) or cc-switch edit -i
+- CLI: cc-switch edit <name>
+
+The interactive mode allows you to browse and select configurations with arrow keys.
+
 The editor is determined by priority:
 1. --nano flag uses nano editor
 2. EDITOR environment variable 
 3. Default to vim editor
 
 Changes are validated for JSON syntax before saving.`,
-	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 1 {
-			return fmt.Errorf(`Missing required argument: configuration name
-
-Usage: cc-switch edit <name>
-
-Example: cc-switch edit production
-
-Use 'cc-switch list' to see available configurations.
-Use 'cc-switch edit --help' for more information.`)
-		}
-		if len(args) > 1 {
-			return fmt.Errorf(`Too many arguments provided
-
-Usage: cc-switch edit <name>
-
-Example: cc-switch edit production
-
-Use 'cc-switch edit --help' for more information.`)
-		}
-		return nil
-	},
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-
 		if err := checkClaudeConfig(); err != nil {
 			return err
 		}
@@ -63,18 +47,18 @@ Use 'cc-switch edit --help' for more information.`)
 			return fmt.Errorf("failed to initialize config manager: %w", err)
 		}
 
-		// 检查配置是否存在
-		if !cm.ProfileExists(name) {
-			return fmt.Errorf("configuration '%s' does not exist", name)
+		// 检测执行模式
+		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
+		mode := interactive.DetectMode(interactiveFlag, args)
+
+		switch mode {
+		case interactive.Interactive:
+			return handleInteractiveEdit(cm)
+		case interactive.CLI:
+			return handleCLIEdit(cm, args[0])
 		}
 
-		if editField != "" {
-			// 字段编辑模式
-			return editProfileField(cm, name, editField)
-		} else {
-			// 编辑器模式
-			return editProfileWithEditor(cm, name)
-		}
+		return nil
 	},
 }
 
@@ -164,7 +148,7 @@ func editProfileWithEditor(cm *config.ConfigManager, name string) error {
 		return fmt.Errorf("failed to update configuration: %w", err)
 	}
 
-	color.Green("✓ Configuration '%s' updated successfully", name)
+	interactive.ShowSuccess("Configuration '%s' updated successfully", name)
 	return nil
 }
 
@@ -214,7 +198,7 @@ func editProfileField(cm *config.ConfigManager, name, field string) error {
 		return fmt.Errorf("failed to update configuration: %w", err)
 	}
 
-	color.Green("✓ Field '%s' updated successfully in configuration '%s'", field, name)
+	interactive.ShowSuccess("Field '%s' updated successfully in configuration '%s'", field, name)
 	return nil
 }
 
@@ -257,6 +241,7 @@ func setNestedValue(data map[string]interface{}, fieldParts []string, value inte
 func init() {
 	editCmd.Flags().StringVar(&editField, "field", "", "Edit a specific field (e.g., 'env.ANTHROPIC_API_KEY')")
 	editCmd.Flags().BoolVar(&useNano, "nano", false, "Use nano editor instead of default")
+	editCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
 }
 
 // getEditor 根据优先级确定使用的编辑器
