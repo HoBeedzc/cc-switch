@@ -110,7 +110,7 @@ func (cm *ConfigManager) ListProfiles() ([]Profile, error) {
 	return profiles, nil
 }
 
-// CreateProfile 创建新配置
+// CreateProfile 创建新配置（从模板）
 func (cm *ConfigManager) CreateProfile(name string) error {
 	if name == "" {
 		return fmt.Errorf("profile name cannot be empty")
@@ -122,14 +122,27 @@ func (cm *ConfigManager) CreateProfile(name string) error {
 		return fmt.Errorf("profile '%s' already exists", name)
 	}
 
-	// 复制当前settings.json到新配置
-	if err := cm.copyFile(cm.settingsFile, profilePath); err != nil {
-		return fmt.Errorf("failed to create profile: %w", err)
+	// 创建配置模板
+	template := map[string]interface{}{
+		"env": map[string]interface{}{
+			"ANTHROPIC_AUTH_TOKEN": "",
+			"ANTHROPIC_BASE_URL":   "",
+		},
+		"permissions": map[string]interface{}{
+			"allow": []interface{}{},
+			"deny":  []interface{}{},
+		},
 	}
 
-	// 设置文件权限
-	if err := os.Chmod(profilePath, 0600); err != nil {
-		return fmt.Errorf("failed to set profile permissions: %w", err)
+	// 序列化模板
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to create template: %w", err)
+	}
+
+	// 写入文件
+	if err := os.WriteFile(profilePath, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to create profile: %w", err)
 	}
 
 	return nil
@@ -242,4 +255,105 @@ func (cm *ConfigManager) ProfileExists(name string) bool {
 	profilePath := filepath.Join(cm.profilesDir, name+".json")
 	_, err := os.Stat(profilePath)
 	return err == nil
+}
+
+// GetProfileContent 获取配置内容和元数据
+func (cm *ConfigManager) GetProfileContent(name string) (map[string]interface{}, Profile, error) {
+	profilePath := filepath.Join(cm.profilesDir, name+".json")
+	
+	// 检查配置是否存在
+	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+		return nil, Profile{}, fmt.Errorf("profile '%s' does not exist", name)
+	}
+
+	// 读取配置文件
+	data, err := os.ReadFile(profilePath)
+	if err != nil {
+		return nil, Profile{}, fmt.Errorf("failed to read profile file: %w", err)
+	}
+
+	// 解析JSON内容
+	var content map[string]interface{}
+	if err := json.Unmarshal(data, &content); err != nil {
+		return nil, Profile{}, fmt.Errorf("failed to parse JSON content: %w", err)
+	}
+
+	// 创建元数据
+	currentProfile, _ := cm.getCurrentProfile()
+	metadata := Profile{
+		Name:      name,
+		IsCurrent: name == currentProfile,
+		Path:      profilePath,
+	}
+
+	return content, metadata, nil
+}
+
+// UpdateProfile 更新配置内容
+func (cm *ConfigManager) UpdateProfile(name string, content map[string]interface{}) error {
+	profilePath := filepath.Join(cm.profilesDir, name+".json")
+	
+	// 检查配置是否存在
+	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+		return fmt.Errorf("profile '%s' does not exist", name)
+	}
+
+	// 验证JSON内容
+	if err := cm.validateProfileContent(content); err != nil {
+		return fmt.Errorf("invalid profile content: %w", err)
+	}
+
+	// 创建备份
+	backupPath := profilePath + ".backup"
+	if err := cm.copyFile(profilePath, backupPath); err != nil {
+		return fmt.Errorf("failed to create backup: %w", err)
+	}
+
+	// 序列化新内容
+	jsonData, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize JSON: %w", err)
+	}
+
+	// 原子性写入
+	tempFile := profilePath + ".tmp"
+	if err := os.WriteFile(tempFile, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	// 原子性重命名
+	if err := os.Rename(tempFile, profilePath); err != nil {
+		os.Remove(tempFile) // 清理临时文件
+		return fmt.Errorf("failed to update profile: %w", err)
+	}
+
+	// 如果是当前配置，同时更新settings.json
+	currentProfile, _ := cm.getCurrentProfile()
+	if name == currentProfile {
+		if err := os.WriteFile(cm.settingsFile, jsonData, 0600); err != nil {
+			return fmt.Errorf("failed to sync current settings: %w", err)
+		}
+	}
+
+	// 清理备份文件（更新成功后）
+	os.Remove(backupPath)
+
+	return nil
+}
+
+// validateProfileContent 验证配置内容
+func (cm *ConfigManager) validateProfileContent(content map[string]interface{}) error {
+	// 基本JSON格式验证（通过能够unmarshal已经验证）
+	
+	// 检查必要字段（可根据需要扩展）
+	if content == nil {
+		return fmt.Errorf("content cannot be nil")
+	}
+
+	// 验证是否可以序列化
+	if _, err := json.Marshal(content); err != nil {
+		return fmt.Errorf("content cannot be serialized to JSON: %w", err)
+	}
+
+	return nil
 }

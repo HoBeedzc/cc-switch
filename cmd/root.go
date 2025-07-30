@@ -31,6 +31,8 @@ func init() {
 	rootCmd.AddCommand(useCmd)
 	rootCmd.AddCommand(deleteCmd)
 	rootCmd.AddCommand(currentCmd)
+	rootCmd.AddCommand(viewCmd)
+	rootCmd.AddCommand(editCmd)
 }
 
 // 检查Claude配置是否存在的助手函数
