@@ -21,15 +21,15 @@
     "cli",
     "tool"
   ],
-  "author": "Your Name",
+  "author": "hobee",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/cc-switch.git"
+    "url": "https://github.com/hobee/cc-switch.git"
   },
-  "homepage": "https://github.com/yourusername/cc-switch#readme",
+  "homepage": "https://github.com/hobee/cc-switch#readme",
   "bugs": {
-    "url": "https://github.com/yourusername/cc-switch/issues"
+    "url": "https://github.com/hobee/cc-switch/issues"
   },
   "os": [
     "darwin",
