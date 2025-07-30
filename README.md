@@ -65,6 +65,12 @@ cc-switch use work
 # Show current configuration
 cc-switch current
 
+# View configuration details
+cc-switch view work
+
+# Edit configuration
+cc-switch edit work
+
 # Delete unused configuration
 cc-switch delete old-config
 ```
@@ -95,6 +101,18 @@ On first run:
 - Atomic operations using temporary files ensure configuration integrity
 - Automatic backup of current configuration before switching
 
+#### View Configuration Details
+```bash
+cc-switch view <name>
+```
+Displays the settings for a specific configuration without switching to it.
+
+#### Edit Configuration
+```bash
+cc-switch edit <name>
+```
+Opens the configuration in your default text editor for modification.
+
 ### Commands Reference
 
 | Command | Description |
@@ -104,6 +122,8 @@ On first run:
 | `use <name>` | Switch to a configuration |
 | `delete <name>` | Delete a configuration |
 | `current` | Show current configuration |
+| `view <name>` | View configuration details |
+| `edit <name>` | Edit configuration in text editor |
 
 ### Requirements
 
@@ -116,7 +136,7 @@ On first run:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/cc-switch.git
+git clone https://github.com/hobee/cc-switch.git
 cd cc-switch
 
 # Install dependencies
@@ -140,9 +160,18 @@ cc-switch/
 │   ├── new.go
 │   ├── use.go
 │   ├── delete.go
-│   └── current.go
+│   ├── current.go
+│   ├── view.go
+│   └── edit.go
 ├── internal/config/        # Configuration management
 │   └── manager.go
+├── internal/handler/       # Business logic handlers
+│   ├── config_handler.go
+│   └── types.go
+├── internal/ui/           # User interface layer
+│   ├── cli.go
+│   ├── interactive.go
+│   └── interfaces.go
 ├── scripts/               # Build and install scripts
 │   ├── build.sh
 │   └── install.js
@@ -165,7 +194,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you encounter any issues or have questions:
 
-1. Check the [Issues](https://github.com/yourusername/cc-switch/issues) page
+1. Check the [Issues](https://github.com/hobee/cc-switch/issues) page
 2. Create a new issue if your problem isn't already reported
 3. Include your OS, Node.js version, and error messages
 
@@ -228,6 +257,12 @@ cc-switch use work
 # 显示当前配置
 cc-switch current
 
+# 查看配置详情
+cc-switch view work
+
+# 编辑配置
+cc-switch edit work
+
 # 删除不用的配置
 cc-switch delete old-config
 ```
@@ -258,6 +293,18 @@ cc-switch delete old-config
 - 使用临时文件的原子操作确保配置完整性
 - 切换前自动备份当前配置
 
+#### 查看配置详情
+```bash
+cc-switch view <名称>
+```
+显示指定配置的设置内容，不会切换到该配置。
+
+#### 编辑配置
+```bash
+cc-switch edit <名称>
+```
+在默认文本编辑器中打开配置进行修改。
+
 ### 命令参考
 
 | 命令 | 说明 |
@@ -267,6 +314,8 @@ cc-switch delete old-config
 | `use <名称>` | 切换到配置 |
 | `delete <名称>` | 删除配置 |
 | `current` | 显示当前配置 |
+| `view <名称>` | 查看配置详情 |
+| `edit <名称>` | 在文本编辑器中编辑配置 |
 
 ### 系统要求
 
@@ -279,7 +328,7 @@ cc-switch delete old-config
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/cc-switch.git
+git clone https://github.com/hobee/cc-switch.git
 cd cc-switch
 
 # 安装依赖
@@ -303,9 +352,18 @@ cc-switch/
 │   ├── new.go
 │   ├── use.go
 │   ├── delete.go
-│   └── current.go
+│   ├── current.go
+│   ├── view.go
+│   └── edit.go
 ├── internal/config/        # 配置管理
 │   └── manager.go
+├── internal/handler/       # 业务逻辑处理器
+│   ├── config_handler.go
+│   └── types.go
+├── internal/ui/           # 用户界面层
+│   ├── cli.go
+│   ├── interactive.go
+│   └── interfaces.go
 ├── scripts/               # 构建和安装脚本
 │   ├── build.sh
 │   └── install.js
@@ -328,6 +386,6 @@ cc-switch/
 
 如果遇到问题或有疑问：
 
-1. 查看 [Issues](https://github.com/yourusername/cc-switch/issues) 页面
+1. 查看 [Issues](https://github.com/hobee/cc-switch/issues) 页面
 2. 如果问题尚未报告，请创建新 issue
 3. 请包含您的操作系统、Node.js 版本和错误信息
