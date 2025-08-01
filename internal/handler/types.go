@@ -12,7 +12,7 @@ type ConfigHandler interface {
 	UseConfig(name string) error
 	ViewConfig(name string, raw bool) (*ConfigView, error)
 	EditConfig(name string, field string, useNano bool) error
-	
+
 	// Helper operations
 	ValidateConfigExists(name string) error
 	GetCurrentConfig() (string, error)

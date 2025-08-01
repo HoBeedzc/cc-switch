@@ -10,9 +10,9 @@ import (
 
 // ConfigManager 管理Claude配置切换
 type ConfigManager struct {
-	claudeDir   string
-	profilesDir string
-	currentFile string
+	claudeDir    string
+	profilesDir  string
+	currentFile  string
 	settingsFile string
 }
 
@@ -36,9 +36,9 @@ func NewConfigManager() (*ConfigManager, error) {
 	settingsFile := filepath.Join(claudeDir, "settings.json")
 
 	cm := &ConfigManager{
-		claudeDir:   claudeDir,
-		profilesDir: profilesDir,
-		currentFile: currentFile,
+		claudeDir:    claudeDir,
+		profilesDir:  profilesDir,
+		currentFile:  currentFile,
 		settingsFile: settingsFile,
 	}
 
@@ -66,7 +66,7 @@ func (cm *ConfigManager) Initialize() error {
 			if err := cm.copyFile(cm.settingsFile, defaultProfilePath); err != nil {
 				return fmt.Errorf("failed to create default profile: %w", err)
 			}
-			
+
 			// 设置权限
 			if err := os.Chmod(defaultProfilePath, 0600); err != nil {
 				return fmt.Errorf("failed to set profile permissions: %w", err)
@@ -151,7 +151,7 @@ func (cm *ConfigManager) CreateProfile(name string) error {
 // UseProfile 切换到指定配置
 func (cm *ConfigManager) UseProfile(name string) error {
 	profilePath := filepath.Join(cm.profilesDir, name+".json")
-	
+
 	// 检查配置是否存在
 	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
 		return fmt.Errorf("profile '%s' does not exist", name)
@@ -199,7 +199,7 @@ func (cm *ConfigManager) DeleteProfile(name string) error {
 	}
 
 	profilePath := filepath.Join(cm.profilesDir, name+".json")
-	
+
 	// 检查配置是否存在
 	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
 		return fmt.Errorf("profile '%s' does not exist", name)
@@ -260,7 +260,7 @@ func (cm *ConfigManager) ProfileExists(name string) bool {
 // GetProfileContent 获取配置内容和元数据
 func (cm *ConfigManager) GetProfileContent(name string) (map[string]interface{}, Profile, error) {
 	profilePath := filepath.Join(cm.profilesDir, name+".json")
-	
+
 	// 检查配置是否存在
 	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
 		return nil, Profile{}, fmt.Errorf("profile '%s' does not exist", name)
@@ -292,7 +292,7 @@ func (cm *ConfigManager) GetProfileContent(name string) (map[string]interface{},
 // UpdateProfile 更新配置内容
 func (cm *ConfigManager) UpdateProfile(name string, content map[string]interface{}) error {
 	profilePath := filepath.Join(cm.profilesDir, name+".json")
-	
+
 	// 检查配置是否存在
 	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
 		return fmt.Errorf("profile '%s' does not exist", name)
@@ -344,7 +344,7 @@ func (cm *ConfigManager) UpdateProfile(name string, content map[string]interface
 // validateProfileContent 验证配置内容
 func (cm *ConfigManager) validateProfileContent(content map[string]interface{}) error {
 	// 基本JSON格式验证（通过能够unmarshal已经验证）
-	
+
 	// 检查必要字段（可根据需要扩展）
 	if content == nil {
 		return fmt.Errorf("content cannot be nil")

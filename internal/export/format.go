@@ -16,7 +16,7 @@ const (
 	// CCX file format magic number
 	MagicNumber = "CCX1"
 	Version     = 1
-	
+
 	// Flags
 	FlagEncrypted  = 1 << 0
 	FlagCompressed = 1 << 1
@@ -34,13 +34,13 @@ type CCXHeader struct {
 
 // CCXMetadata contains file metadata
 type CCXMetadata struct {
-	Version        string `json:"version"`
-	ExportedAt     string `json:"exported_at"`
-	ToolVersion    string `json:"tool_version"`
-	ExportType     string `json:"export_type"`
-	ProfilesCount  int    `json:"profiles_count"`
-	Encryption     string `json:"encryption"`
-	Compression    string `json:"compression"`
+	Version       string `json:"version"`
+	ExportedAt    string `json:"exported_at"`
+	ToolVersion   string `json:"tool_version"`
+	ExportType    string `json:"export_type"`
+	ProfilesCount int    `json:"profiles_count"`
+	Encryption    string `json:"encryption"`
+	Compression   string `json:"compression"`
 }
 
 // ProfileData represents a profile in the export
@@ -104,19 +104,19 @@ func (h *CCXHandler) Write(data *ExportData, writer io.Writer, password string) 
 	// Encrypt payload if password provided
 	var finalPayload []byte
 	flags := uint32(FlagCompressed)
-	
+
 	if password != "" {
 		encData, err := common.EncryptData(compressedPayload, password)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt payload: %w", err)
 		}
-		
+
 		// Serialize encryption data
 		encBytes, err := h.serializeEncryptionData(encData)
 		if err != nil {
 			return fmt.Errorf("failed to serialize encryption data: %w", err)
 		}
-		
+
 		finalPayload = encBytes
 		flags |= FlagEncrypted
 	} else {
@@ -197,7 +197,7 @@ func (h *CCXHandler) Read(reader io.Reader, password string) (*ExportData, error
 		return nil, fmt.Errorf("failed to prepare metadata for checksum verification: %w", err)
 	}
 	metadataWithLengthBytes := metadataWithLength.Bytes()
-	
+
 	expectedChecksum := crc32.ChecksumIEEE(append(metadataWithLengthBytes, payloadBytes...))
 	if expectedChecksum != header.Checksum {
 		return nil, fmt.Errorf("file integrity check failed: checksum mismatch")
@@ -219,7 +219,7 @@ func (h *CCXHandler) Read(reader io.Reader, password string) (*ExportData, error
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt payload: %w", err)
 		}
-		
+
 		compressedPayload = decrypted
 	} else {
 		compressedPayload = payloadBytes
@@ -292,7 +292,7 @@ func (h *CCXHandler) writeWithLength(writer io.Writer, data []byte) error {
 	if err := binary.Write(writer, binary.LittleEndian, length); err != nil {
 		return err
 	}
-	
+
 	// Write data
 	_, err := writer.Write(data)
 	return err
@@ -304,43 +304,43 @@ func (h *CCXHandler) readWithLength(reader io.Reader) ([]byte, error) {
 	if err := binary.Read(reader, binary.LittleEndian, &length); err != nil {
 		return nil, err
 	}
-	
+
 	// Read data
 	data := make([]byte, length)
 	if _, err := io.ReadFull(reader, data); err != nil {
 		return nil, err
 	}
-	
+
 	return data, nil
 }
 
 func (h *CCXHandler) serializeEncryptionData(encData *common.EncryptionData) ([]byte, error) {
 	var buf bytes.Buffer
-	
+
 	// Write salt length and salt
 	if err := binary.Write(&buf, binary.LittleEndian, uint32(len(encData.Salt))); err != nil {
 		return nil, err
 	}
 	buf.Write(encData.Salt)
-	
+
 	// Write nonce length and nonce
 	if err := binary.Write(&buf, binary.LittleEndian, uint32(len(encData.Nonce))); err != nil {
 		return nil, err
 	}
 	buf.Write(encData.Nonce)
-	
+
 	// Write encrypted data length and data
 	if err := binary.Write(&buf, binary.LittleEndian, uint32(len(encData.Encrypted))); err != nil {
 		return nil, err
 	}
 	buf.Write(encData.Encrypted)
-	
+
 	return buf.Bytes(), nil
 }
 
 func (h *CCXHandler) deserializeEncryptionData(data []byte) (*common.EncryptionData, error) {
 	reader := bytes.NewReader(data)
-	
+
 	// Read salt
 	var saltLen uint32
 	if err := binary.Read(reader, binary.LittleEndian, &saltLen); err != nil {
@@ -350,7 +350,7 @@ func (h *CCXHandler) deserializeEncryptionData(data []byte) (*common.EncryptionD
 	if _, err := io.ReadFull(reader, salt); err != nil {
 		return nil, err
 	}
-	
+
 	// Read nonce
 	var nonceLen uint32
 	if err := binary.Read(reader, binary.LittleEndian, &nonceLen); err != nil {
@@ -360,7 +360,7 @@ func (h *CCXHandler) deserializeEncryptionData(data []byte) (*common.EncryptionD
 	if _, err := io.ReadFull(reader, nonce); err != nil {
 		return nil, err
 	}
-	
+
 	// Read encrypted data
 	var encLen uint32
 	if err := binary.Read(reader, binary.LittleEndian, &encLen); err != nil {
@@ -370,7 +370,7 @@ func (h *CCXHandler) deserializeEncryptionData(data []byte) (*common.EncryptionD
 	if _, err := io.ReadFull(reader, encrypted); err != nil {
 		return nil, err
 	}
-	
+
 	return &common.EncryptionData{
 		Salt:      salt,
 		Nonce:     nonce,

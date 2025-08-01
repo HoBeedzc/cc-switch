@@ -18,25 +18,25 @@ type ImportOptions struct {
 
 // ImportResult represents the result of an import operation
 type ImportResult struct {
-	ProfilesImported []string       // Successfully imported profiles
-	Conflicts        []string       // Profiles that had conflicts
-	Errors          []error        // Errors encountered during import
-	Summary         ImportSummary  // Summary statistics
+	ProfilesImported []string      // Successfully imported profiles
+	Conflicts        []string      // Profiles that had conflicts
+	Errors           []error       // Errors encountered during import
+	Summary          ImportSummary // Summary statistics
 }
 
 // ImportSummary provides import statistics
 type ImportSummary struct {
-	TotalProfiles    int // Total profiles in import file
-	ImportedCount    int // Successfully imported
-	SkippedCount     int // Skipped due to conflicts
-	RenamedCount     int // Renamed due to conflicts
-	ErrorCount       int // Failed imports
+	TotalProfiles int // Total profiles in import file
+	ImportedCount int // Successfully imported
+	SkippedCount  int // Skipped due to conflicts
+	RenamedCount  int // Renamed due to conflicts
+	ErrorCount    int // Failed imports
 }
 
 // ConflictInfo represents a naming conflict
 type ConflictInfo struct {
-	OriginalName string // Original profile name
-	ConflictName string // Conflicting name
+	OriginalName  string // Original profile name
+	ConflictName  string // Conflicting name
 	SuggestedName string // Suggested alternative name
 }
 
@@ -85,7 +85,7 @@ func (i *ImporterImpl) Import(inputPath string, password string, options ImportO
 	result := &ImportResult{
 		ProfilesImported: make([]string, 0),
 		Conflicts:        make([]string, 0),
-		Errors:          make([]error, 0),
+		Errors:           make([]error, 0),
 		Summary: ImportSummary{
 			TotalProfiles: len(exportData.Profiles),
 		},
@@ -161,7 +161,7 @@ func (i *ImporterImpl) importProfile(profileData export.ProfileData, options Imp
 				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s -> %s (would be renamed)", finalName, alternativeName))
 				return nil
 			}
-			
+
 			finalName = alternativeName
 			result.Summary.RenamedCount++
 		} else {
@@ -193,7 +193,7 @@ func (i *ImporterImpl) importProfile(profileData export.ProfileData, options Imp
 		if err := i.configManager.CreateProfile(finalName); err != nil {
 			return fmt.Errorf("failed to create profile: %w", err)
 		}
-		
+
 		// Update with imported content
 		if err := i.configManager.UpdateProfile(finalName, profileData.Content); err != nil {
 			// Clean up on failure
@@ -221,14 +221,14 @@ func (i *ImporterImpl) validateProfileContent(content map[string]interface{}) er
 func (i *ImporterImpl) generateAlternativeName(originalName string) string {
 	counter := 1
 	baseName := originalName
-	
+
 	// If the name already has a number suffix, extract the base name
 	if lastDash := strings.LastIndex(originalName, "-"); lastDash != -1 {
 		if suffix := originalName[lastDash+1:]; isNumeric(suffix) {
 			baseName = originalName[:lastDash]
 		}
 	}
-	
+
 	for {
 		candidateName := fmt.Sprintf("%s-%d", baseName, counter)
 		if !i.configManager.ProfileExists(candidateName) {

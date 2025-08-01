@@ -86,11 +86,11 @@ Examples:
 				return fmt.Errorf("failed to list profiles: %w", err)
 			}
 			profileCount = len(profiles)
-			
+
 			if profileCount == 0 {
 				return fmt.Errorf("no profiles found to export")
 			}
-			
+
 			color.Cyan("📦 Collecting profiles... (%d found)", profileCount)
 			exportErr = exporter.ExportAll(password, outputPath)
 		} else if exportCurrent {
@@ -102,7 +102,7 @@ Examples:
 			if current == "" {
 				return fmt.Errorf("no current profile set")
 			}
-			
+
 			profileCount = 1
 			color.Cyan("📦 Exporting current profile '%s'...", current)
 			exportErr = exporter.ExportCurrent(password, outputPath)
@@ -112,7 +112,7 @@ Examples:
 			if !cm.ProfileExists(profileName) {
 				return fmt.Errorf("profile '%s' does not exist", profileName)
 			}
-			
+
 			profileCount = 1
 			color.Cyan("📦 Exporting profile '%s'...", profileName)
 			exportErr = exporter.ExportProfile(profileName, password, outputPath)
@@ -145,7 +145,7 @@ func init() {
 	exportCmd.Flags().StringVarP(&exportPassword, "password", "p", "", "Encryption password (prompt if not provided)")
 	exportCmd.Flags().BoolVar(&exportAll, "all", false, "Export all profiles")
 	exportCmd.Flags().BoolVar(&exportCurrent, "current", false, "Export current profile")
-	
+
 	exportCmd.MarkFlagRequired("output")
 }
 
@@ -185,7 +185,7 @@ func promptForPassword(prompt string) (string, error) {
 	}
 
 	passwordStr := string(password)
-	
+
 	if passwordStr != "" {
 		fmt.Print("Confirm password: ")
 		confirm, err := term.ReadPassword(int(syscall.Stdin))
