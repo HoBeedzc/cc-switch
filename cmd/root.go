@@ -16,7 +16,9 @@ This tool allows you to:
 - List all available configurations
 - Create new configurations  
 - Switch between configurations
-- Delete unused configurations`,
+- Delete unused configurations
+- Export configurations to backup files
+- Import configurations from backup files`,
 	SilenceUsage: true,
 }
 
@@ -33,6 +35,8 @@ func init() {
 	rootCmd.AddCommand(currentCmd)
 	rootCmd.AddCommand(viewCmd)
 	rootCmd.AddCommand(editCmd)
+	rootCmd.AddCommand(exportCmd)
+	rootCmd.AddCommand(importCmd)
 }
 
 // 检查Claude配置是否存在的助手函数
