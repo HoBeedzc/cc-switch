@@ -124,7 +124,7 @@ func (h *configHandler) editProfileField(name, field string) error {
 
 	// Parse field path (supports nested fields, like "env.ANTHROPIC_API_KEY")
 	fieldParts := strings.Split(field, ".")
-	
+
 	// Display current value
 	currentValue := h.getNestedValue(content, fieldParts)
 	fmt.Printf("Current value of '%s': ", field)
@@ -283,12 +283,12 @@ func (h *configHandler) getEditor(useNano bool) string {
 	if useNano {
 		return "nano"
 	}
-	
+
 	// 2. EDITOR environment variable
 	if editor := os.Getenv("EDITOR"); editor != "" {
 		return editor
 	}
-	
+
 	// 3. Default to vim
 	return "vim"
 }

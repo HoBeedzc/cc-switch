@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	importPassword string
+	importPassword  string
 	importOverwrite bool
-	importPrefix   string
-	importDryRun   bool
+	importPrefix    string
+	importDryRun    bool
 )
 
 var importCmd = &cobra.Command{
@@ -77,7 +77,7 @@ Examples:
 		// Get password if not provided
 		password := importPassword
 		isEncrypted := strings.Contains(metadata.Encryption, "aes")
-		
+
 		if isEncrypted && password == "" {
 			password, err = promptForDecryptionPassword()
 			if err != nil {
@@ -152,7 +152,7 @@ func showFileInfo(metadata *export.CCXMetadata) {
 	color.Blue("   Tool: %s", metadata.ToolVersion)
 	color.Blue("   Profiles: %d", metadata.ProfilesCount)
 	color.Blue("   Type: %s", metadata.ExportType)
-	
+
 	if metadata.Encryption != "" {
 		color.Blue("   Encryption: %s", metadata.Encryption)
 	}
@@ -165,7 +165,7 @@ func showFileInfo(metadata *export.CCXMetadata) {
 func showConflicts(conflicts []importpkg.ConflictInfo) {
 	color.Yellow("⚠️  Naming conflicts detected:")
 	for _, conflict := range conflicts {
-		color.Yellow("   • '%s' already exists (suggested: '%s')", 
+		color.Yellow("   • '%s' already exists (suggested: '%s')",
 			conflict.ConflictName, conflict.SuggestedName)
 	}
 	fmt.Println()
@@ -186,7 +186,7 @@ func confirmProceed() bool {
 
 func showImportResults(result *importpkg.ImportResult, isDryRun bool) {
 	summary := result.Summary
-	
+
 	if isDryRun {
 		color.Cyan("🔍 Dry Run Results:")
 	} else {
@@ -200,7 +200,7 @@ func showImportResults(result *importpkg.ImportResult, isDryRun bool) {
 	fmt.Println()
 	color.Blue("📊 Summary:")
 	color.Blue("   Total profiles: %d", summary.TotalProfiles)
-	
+
 	if isDryRun {
 		color.Blue("   Would import: %d", summary.ImportedCount)
 		if summary.SkippedCount > 0 {

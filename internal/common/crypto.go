@@ -6,8 +6,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"golang.org/x/crypto/pbkdf2"
 	"io"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
 const (

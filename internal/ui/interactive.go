@@ -26,12 +26,12 @@ func (ui *interactiveUI) DetectMode(hasInteractiveFlag bool, args []string) Exec
 	if hasInteractiveFlag {
 		return Interactive
 	}
-	
+
 	// No arguments automatically enters interactive mode
 	if len(args) == 0 {
 		return Interactive
 	}
-	
+
 	return CLI
 }
 
@@ -85,7 +85,7 @@ func (ui *interactiveUI) SelectAction(selectedConfig *config.Profile) (string, e
 // ShowActionMenu displays an action selection menu
 func (ui *interactiveUI) ShowActionMenu(selectedConfig *config.Profile) (string, error) {
 	actions := []string{"View", "Edit", "Use", "Delete", "Cancel"}
-	
+
 	// If it's the current configuration, cannot delete
 	if selectedConfig.IsCurrent {
 		actions = []string{"View", "Edit", "Cancel"}
@@ -104,12 +104,12 @@ func (ui *interactiveUI) ShowActionMenu(selectedConfig *config.Profile) (string,
 		Templates: templates,
 		Size:      len(actions),
 	}
-	
+
 	_, result, err := prompt.Run()
 	if err != nil {
 		return "", err
 	}
-	
+
 	return strings.ToLower(result), nil
 }
 
@@ -137,7 +137,7 @@ func (ui *interactiveUI) ConfirmAction(message string, defaultValue bool) bool {
 	if result == "" {
 		return defaultValue
 	}
-	
+
 	return result == "y" || result == "yes" || result == "true"
 }
 
