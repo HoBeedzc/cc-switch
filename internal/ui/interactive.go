@@ -155,6 +155,21 @@ func (ui *interactiveUI) GetUserInput(prompt string) (string, error) {
 	return strings.TrimSpace(result), nil
 }
 
+// GetInput prompts for user input with a default value
+func (ui *interactiveUI) GetInput(prompt string, defaultValue string) (string, error) {
+	promptUI := promptui.Prompt{
+		Label:   prompt,
+		Default: defaultValue,
+	}
+
+	result, err := promptUI.Run()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(result), nil
+}
+
 // GetFieldInput prompts for field-specific input
 func (ui *interactiveUI) GetFieldInput(fieldName string, currentValue interface{}) (interface{}, error) {
 	// Display current value

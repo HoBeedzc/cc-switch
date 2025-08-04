@@ -10,14 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var deleteCmd = &cobra.Command{
-	Use:   "delete [name]",
-	Short: "Delete a configuration",
-	Long: `Delete the specified configuration. You cannot delete the currently active configuration.
+var rmCmd = &cobra.Command{
+	Use:   "rm [name]",
+	Short: "Remove a configuration",
+	Long: `Remove the specified configuration. You cannot remove the currently active configuration.
 
 Modes:
-- Interactive: cc-switch delete (no arguments) or cc-switch delete -i
-- CLI: cc-switch delete <name>
+- Interactive: cc-switch rm (no arguments) or cc-switch rm -i
+- CLI: cc-switch rm <name>
 
 The interactive mode allows you to browse and select configurations with arrow keys.`,
 	Args: cobra.MaximumNArgs(1),
@@ -44,13 +44,14 @@ The interactive mode allows you to browse and select configurations with arrow k
 			uiProvider = ui.NewCLIUI()
 		}
 
-		// Execute delete operation
-		return executeDelete(configHandler, uiProvider, args, force)
+		// Execute remove operation (reuse delete logic)
+		return executeRemove(configHandler, uiProvider, args, force)
 	},
 }
 
-// executeDelete handles the delete operation with the given dependencies
-func executeDelete(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, force bool) error {
+// executeRemove handles the remove operation with the given dependencies
+// This function reuses the logic from delete.go with appropriate naming changes
+func executeRemove(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, force bool) error {
 	// Get all configurations
 	profiles, err := configHandler.ListConfigs()
 	if err != nil {
@@ -67,22 +68,22 @@ func executeDelete(configHandler handler.ConfigHandler, uiProvider ui.UIProvider
 
 	// Determine execution mode
 	if len(args) == 0 {
-		// Interactive mode - filter out current config (cannot delete current)
-		var deletableProfiles []config.Profile
+		// Interactive mode - filter out current config (cannot remove current)
+		var removableProfiles []config.Profile
 		for _, profile := range profiles {
 			if !profile.IsCurrent {
-				deletableProfiles = append(deletableProfiles, profile)
+				removableProfiles = append(removableProfiles, profile)
 			}
 		}
 
-		if len(deletableProfiles) == 0 {
-			uiProvider.ShowWarning("No configurations available for deletion.")
-			fmt.Println("The current configuration cannot be deleted. Switch to another configuration first.")
+		if len(removableProfiles) == 0 {
+			uiProvider.ShowWarning("No configurations available for removal.")
+			fmt.Println("The current configuration cannot be removed. Switch to another configuration first.")
 			return nil
 		}
 
 		// Select configuration interactively
-		selected, err := uiProvider.SelectConfiguration(deletableProfiles, "delete")
+		selected, err := uiProvider.SelectConfiguration(removableProfiles, "remove")
 		if err != nil {
 			return fmt.Errorf("selection cancelled: %w", err)
 		}
@@ -92,26 +93,26 @@ func executeDelete(configHandler handler.ConfigHandler, uiProvider ui.UIProvider
 		targetName = args[0]
 	}
 
-	// Confirm deletion if not forced
+	// Confirm removal if not forced
 	if !force {
-		confirmMsg := fmt.Sprintf("Are you sure you want to delete configuration '%s'?", targetName)
+		confirmMsg := fmt.Sprintf("Are you sure you want to remove configuration '%s'?", targetName)
 		if !uiProvider.ConfirmAction(confirmMsg, false) {
 			uiProvider.ShowInfo("Operation cancelled")
 			return nil
 		}
 	}
 
-	// Execute deletion
+	// Execute removal
 	if err := configHandler.DeleteConfig(targetName, force); err != nil {
 		uiProvider.ShowError(err)
 		return err
 	}
 
-	uiProvider.ShowSuccess("Configuration '%s' deleted successfully", targetName)
+	uiProvider.ShowSuccess("Configuration '%s' removed successfully", targetName)
 	return nil
 }
 
 func init() {
-	deleteCmd.Flags().BoolP("force", "f", false, "Force delete without confirmation")
-	deleteCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
+	rmCmd.Flags().BoolP("force", "f", false, "Force remove without confirmation")
+	rmCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
 }

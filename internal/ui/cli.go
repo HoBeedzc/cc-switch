@@ -58,6 +58,29 @@ func (ui *cliUI) ConfirmAction(message string, defaultValue bool) bool {
 	return response == "y" || response == "yes"
 }
 
+// GetInput prompts for user input with a default value
+func (ui *cliUI) GetInput(prompt string, defaultValue string) (string, error) {
+	if defaultValue != "" {
+		fmt.Printf("%s [%s]: ", prompt, defaultValue)
+	} else {
+		fmt.Printf("%s: ", prompt)
+	}
+
+	var input string
+	fmt.Scanln(&input)
+
+	input = strings.TrimSpace(input)
+	if input == "" && defaultValue != "" {
+		return defaultValue, nil
+	}
+
+	if input == "" {
+		return "", fmt.Errorf("input cannot be empty")
+	}
+
+	return input, nil
+}
+
 // ShowError displays error messages
 func (ui *cliUI) ShowError(err error) {
 	color.Red("Error: %v", err)
