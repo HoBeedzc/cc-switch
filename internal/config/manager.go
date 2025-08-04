@@ -357,3 +357,86 @@ func (cm *ConfigManager) validateProfileContent(content map[string]interface{}) 
 
 	return nil
 }
+
+// RenameProfile 重命名配置文件
+func (cm *ConfigManager) RenameProfile(oldName, newName string) error {
+	if oldName == "" || newName == "" {
+		return fmt.Errorf("profile names cannot be empty")
+	}
+
+	if oldName == newName {
+		return fmt.Errorf("old and new names cannot be the same")
+	}
+
+	oldPath := filepath.Join(cm.profilesDir, oldName+".json")
+	newPath := filepath.Join(cm.profilesDir, newName+".json")
+
+	// 检查源配置是否存在
+	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
+		return fmt.Errorf("profile '%s' does not exist", oldName)
+	}
+
+	// 检查目标名称是否已存在
+	if _, err := os.Stat(newPath); err == nil {
+		return fmt.Errorf("profile '%s' already exists", newName)
+	}
+
+	// 执行重命名
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("failed to rename profile: %w", err)
+	}
+
+	// 如果重命名的是当前配置，更新当前配置指向
+	currentProfile, _ := cm.getCurrentProfile()
+	if oldName == currentProfile {
+		if err := cm.setCurrentProfile(newName); err != nil {
+			// 如果更新当前配置失败，尝试回滚重命名操作
+			os.Rename(newPath, oldPath)
+			return fmt.Errorf("failed to update current profile marker: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// CopyProfile 复制配置文件
+func (cm *ConfigManager) CopyProfile(sourceName, destName string) error {
+	if sourceName == "" || destName == "" {
+		return fmt.Errorf("profile names cannot be empty")
+	}
+
+	if sourceName == destName {
+		return fmt.Errorf("source and destination names cannot be the same")
+	}
+
+	sourcePath := filepath.Join(cm.profilesDir, sourceName+".json")
+	destPath := filepath.Join(cm.profilesDir, destName+".json")
+
+	// 检查源配置是否存在
+	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+		return fmt.Errorf("profile '%s' does not exist", sourceName)
+	}
+
+	// 检查目标名称是否已存在
+	if _, err := os.Stat(destPath); err == nil {
+		return fmt.Errorf("profile '%s' already exists", destName)
+	}
+
+	// 执行复制
+	if err := cm.copyFile(sourcePath, destPath); err != nil {
+		return fmt.Errorf("failed to copy profile: %w", err)
+	}
+
+	return nil
+}
+
+// SetCurrentProfile 公开设置当前配置的方法
+func (cm *ConfigManager) SetCurrentProfile(name string) error {
+	// 检查配置是否存在
+	profilePath := filepath.Join(cm.profilesDir, name+".json")
+	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+		return fmt.Errorf("profile '%s' does not exist", name)
+	}
+
+	return cm.setCurrentProfile(name)
+}

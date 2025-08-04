@@ -12,6 +12,10 @@ type ConfigHandler interface {
 	UseConfig(name string) error
 	ViewConfig(name string, raw bool) (*ConfigView, error)
 	EditConfig(name string, field string, useNano bool) error
+	
+	// New configuration operations
+	MoveConfig(oldName, newName string) error
+	CopyConfig(sourceName, destName string) error
 
 	// Helper operations
 	ValidateConfigExists(name string) error
@@ -48,4 +52,20 @@ type EditResult struct {
 	Field   string `json:"field,omitempty"`
 	Success bool   `json:"success"`
 	Message string `json:"message"`
+}
+
+// MoveResult represents the result of a move operation
+type MoveResult struct {
+	OldName string `json:"old_name"`
+	NewName string `json:"new_name"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// CopyResult represents the result of a copy operation
+type CopyResult struct {
+	SourceName string `json:"source_name"`
+	DestName   string `json:"dest_name"`
+	Success    bool   `json:"success"`
+	Message    string `json:"message"`
 }

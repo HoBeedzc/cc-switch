@@ -115,6 +115,56 @@ func (h *configHandler) IsCurrentConfig(name string) bool {
 	return err == nil && current == name
 }
 
+// MoveConfig moves (renames) a configuration
+func (h *configHandler) MoveConfig(oldName, newName string) error {
+	// Validate source configuration exists
+	if err := h.ValidateConfigExists(oldName); err != nil {
+		return err
+	}
+
+	// Validate destination name is not empty and different
+	if newName == "" {
+		return fmt.Errorf("new configuration name cannot be empty")
+	}
+
+	if oldName == newName {
+		return fmt.Errorf("old and new configuration names cannot be the same")
+	}
+
+	// Check if destination already exists
+	if h.configManager.ProfileExists(newName) {
+		return fmt.Errorf("configuration '%s' already exists", newName)
+	}
+
+	// Execute the move operation
+	return h.configManager.RenameProfile(oldName, newName)
+}
+
+// CopyConfig copies a configuration to a new name
+func (h *configHandler) CopyConfig(sourceName, destName string) error {
+	// Validate source configuration exists
+	if err := h.ValidateConfigExists(sourceName); err != nil {
+		return err
+	}
+
+	// Validate destination name is not empty and different
+	if destName == "" {
+		return fmt.Errorf("destination configuration name cannot be empty")
+	}
+
+	if sourceName == destName {
+		return fmt.Errorf("source and destination configuration names cannot be the same")
+	}
+
+	// Check if destination already exists
+	if h.configManager.ProfileExists(destName) {
+		return fmt.Errorf("configuration '%s' already exists", destName)
+	}
+
+	// Execute the copy operation
+	return h.configManager.CopyProfile(sourceName, destName)
+}
+
 // editProfileField edits a specific field in the configuration
 func (h *configHandler) editProfileField(name, field string) error {
 	content, _, err := h.configManager.GetProfileContent(name)

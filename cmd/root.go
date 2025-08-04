@@ -16,7 +16,9 @@ This tool allows you to:
 - List all available configurations
 - Create new configurations  
 - Switch between configurations
-- Delete unused configurations
+- Move (rename) configurations
+- Copy configurations
+- Remove configurations
 - Export configurations to backup files
 - Import configurations from backup files`,
 	SilenceUsage: true,
@@ -31,7 +33,9 @@ func init() {
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(useCmd)
-	rootCmd.AddCommand(deleteCmd)
+	rootCmd.AddCommand(mvCmd)
+	rootCmd.AddCommand(cpCmd)
+	rootCmd.AddCommand(rmCmd)
 	rootCmd.AddCommand(currentCmd)
 	rootCmd.AddCommand(viewCmd)
 	rootCmd.AddCommand(editCmd)

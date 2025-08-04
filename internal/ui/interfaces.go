@@ -25,6 +25,9 @@ type UIProvider interface {
 	// Confirmation operations
 	ConfirmAction(message string, defaultValue bool) bool
 
+	// Input operations
+	GetInput(prompt string, defaultValue string) (string, error)
+
 	// Display operations
 	ShowError(err error)
 	ShowSuccess(message string, args ...interface{})
