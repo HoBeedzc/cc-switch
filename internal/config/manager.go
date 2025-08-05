@@ -540,7 +540,7 @@ func (cm *ConfigManager) updateHistory(newProfile string) error {
 	// 如果当前配置不为空且与新配置不同，将其设为previous
 	if history.Current != "" && history.Current != newProfile {
 		history.Previous = history.Current
-		
+
 		// 更新历史列表，保持最近5个记录
 		history.History = cm.addToHistory(history.History, history.Current, 5)
 	}

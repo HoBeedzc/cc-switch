@@ -157,7 +157,7 @@ func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIP
 	} else {
 		uiProvider.ShowSuccess("Switched to configuration '%s'", previousName)
 	}
-	
+
 	return nil
 }
 
