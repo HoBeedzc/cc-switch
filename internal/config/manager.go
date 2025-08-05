@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ConfigManager 管理Claude配置切换
@@ -14,6 +15,7 @@ type ConfigManager struct {
 	profilesDir  string
 	currentFile  string
 	settingsFile string
+	historyFile  string
 }
 
 // Profile 配置文件信息
@@ -21,6 +23,14 @@ type Profile struct {
 	Name      string `json:"name"`
 	IsCurrent bool   `json:"is_current"`
 	Path      string `json:"path"`
+}
+
+// ConfigHistory 配置历史记录
+type ConfigHistory struct {
+	Current   string    `json:"current"`
+	Previous  string    `json:"previous"`
+	History   []string  `json:"history"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // NewConfigManager 创建新的配置管理器
@@ -34,12 +44,14 @@ func NewConfigManager() (*ConfigManager, error) {
 	profilesDir := filepath.Join(claudeDir, "profiles")
 	currentFile := filepath.Join(claudeDir, ".current")
 	settingsFile := filepath.Join(claudeDir, "settings.json")
+	historyFile := filepath.Join(profilesDir, ".history")
 
 	cm := &ConfigManager{
 		claudeDir:    claudeDir,
 		profilesDir:  profilesDir,
 		currentFile:  currentFile,
 		settingsFile: settingsFile,
+		historyFile:  historyFile,
 	}
 
 	// 初始化检查
@@ -181,6 +193,12 @@ func (cm *ConfigManager) UseProfile(name string) error {
 	// 更新当前配置标记
 	if err := cm.setCurrentProfile(name); err != nil {
 		return fmt.Errorf("failed to update current profile marker: %w", err)
+	}
+
+	// 更新历史记录
+	if err := cm.updateHistory(name); err != nil {
+		// 历史记录更新失败不应该阻止配置切换，只记录错误
+		fmt.Fprintf(os.Stderr, "Warning: failed to update history: %v\n", err)
 	}
 
 	return nil
@@ -439,4 +457,140 @@ func (cm *ConfigManager) SetCurrentProfile(name string) error {
 	}
 
 	return cm.setCurrentProfile(name)
+}
+
+// GetPreviousProfile 获取上一个配置名称
+func (cm *ConfigManager) GetPreviousProfile() (string, error) {
+	history, err := cm.loadHistory()
+	if err != nil {
+		return "", fmt.Errorf("failed to load history: %w", err)
+	}
+
+	if history.Previous == "" {
+		return "", fmt.Errorf("no previous configuration available")
+	}
+
+	// 检查上一个配置是否仍然存在
+	if !cm.ProfileExists(history.Previous) {
+		// 清理无效的历史记录
+		cm.cleanupHistory()
+		return "", fmt.Errorf("previous configuration '%s' no longer exists", history.Previous)
+	}
+
+	return history.Previous, nil
+}
+
+// loadHistory 加载配置历史记录
+func (cm *ConfigManager) loadHistory() (*ConfigHistory, error) {
+	// 如果历史文件不存在，返回空历史记录
+	if _, err := os.Stat(cm.historyFile); os.IsNotExist(err) {
+		return &ConfigHistory{
+			History:   make([]string, 0),
+			UpdatedAt: time.Now(),
+		}, nil
+	}
+
+	data, err := os.ReadFile(cm.historyFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read history file: %w", err)
+	}
+
+	var history ConfigHistory
+	if err := json.Unmarshal(data, &history); err != nil {
+		// 如果解析失败，返回新的空历史记录
+		return &ConfigHistory{
+			History:   make([]string, 0),
+			UpdatedAt: time.Now(),
+		}, nil
+	}
+
+	return &history, nil
+}
+
+// saveHistory 保存配置历史记录
+func (cm *ConfigManager) saveHistory(history *ConfigHistory) error {
+	history.UpdatedAt = time.Now()
+
+	jsonData, err := json.MarshalIndent(history, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal history: %w", err)
+	}
+
+	// 原子性写入
+	tempFile := cm.historyFile + ".tmp"
+	if err := os.WriteFile(tempFile, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to write temporary history file: %w", err)
+	}
+
+	if err := os.Rename(tempFile, cm.historyFile); err != nil {
+		os.Remove(tempFile) // 清理临时文件
+		return fmt.Errorf("failed to save history file: %w", err)
+	}
+
+	return nil
+}
+
+// updateHistory 更新配置历史记录
+func (cm *ConfigManager) updateHistory(newProfile string) error {
+	history, err := cm.loadHistory()
+	if err != nil {
+		return fmt.Errorf("failed to load history: %w", err)
+	}
+
+	// 如果当前配置不为空且与新配置不同，将其设为previous
+	if history.Current != "" && history.Current != newProfile {
+		history.Previous = history.Current
+		
+		// 更新历史列表，保持最近5个记录
+		history.History = cm.addToHistory(history.History, history.Current, 5)
+	}
+
+	history.Current = newProfile
+
+	return cm.saveHistory(history)
+}
+
+// addToHistory 添加配置到历史列表，保持指定数量的最新记录
+func (cm *ConfigManager) addToHistory(history []string, profile string, maxSize int) []string {
+	// 移除重复项
+	var newHistory []string
+	for _, p := range history {
+		if p != profile {
+			newHistory = append(newHistory, p)
+		}
+	}
+
+	// 添加到开头
+	newHistory = append([]string{profile}, newHistory...)
+
+	// 限制大小
+	if len(newHistory) > maxSize {
+		newHistory = newHistory[:maxSize]
+	}
+
+	return newHistory
+}
+
+// cleanupHistory 清理历史记录中不存在的配置
+func (cm *ConfigManager) cleanupHistory() error {
+	history, err := cm.loadHistory()
+	if err != nil {
+		return err
+	}
+
+	// 清理previous配置
+	if history.Previous != "" && !cm.ProfileExists(history.Previous) {
+		history.Previous = ""
+	}
+
+	// 清理历史列表
+	var validHistory []string
+	for _, profile := range history.History {
+		if cm.ProfileExists(profile) {
+			validHistory = append(validHistory, profile)
+		}
+	}
+	history.History = validHistory
+
+	return cm.saveHistory(history)
 }

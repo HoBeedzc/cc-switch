@@ -115,6 +115,11 @@ func (h *configHandler) IsCurrentConfig(name string) bool {
 	return err == nil && current == name
 }
 
+// GetPreviousConfig returns the previous configuration name
+func (h *configHandler) GetPreviousConfig() (string, error) {
+	return h.configManager.GetPreviousProfile()
+}
+
 // MoveConfig moves (renames) a configuration
 func (h *configHandler) MoveConfig(oldName, newName string) error {
 	// Validate source configuration exists

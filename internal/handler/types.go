@@ -21,6 +21,7 @@ type ConfigHandler interface {
 	ValidateConfigExists(name string) error
 	GetCurrentConfig() (string, error)
 	IsCurrentConfig(name string) bool
+	GetPreviousConfig() (string, error)
 }
 
 // ConfigView represents the view of a configuration

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"cc-switch/internal/config"
 	"cc-switch/internal/handler"
@@ -18,8 +19,10 @@ var useCmd = &cobra.Command{
 Modes:
 - Interactive: cc-switch use (no arguments) or cc-switch use -i
 - CLI: cc-switch use <name>
+- Previous: cc-switch use -p or cc-switch use --previous
 
-The interactive mode allows you to browse and select configurations with arrow keys.`,
+The interactive mode allows you to browse and select configurations with arrow keys.
+The previous mode switches to the last used configuration.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkClaudeConfig(); err != nil {
@@ -34,13 +37,28 @@ The interactive mode allows you to browse and select configurations with arrow k
 
 		configHandler := handler.NewConfigHandler(cm)
 		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
+		previousFlag, _ := cmd.Flags().GetBool("previous")
+
+		// Validate flag combinations
+		if previousFlag && len(args) > 0 {
+			return fmt.Errorf("cannot use both -p/--previous flag and configuration name")
+		}
+
+		if previousFlag && interactiveFlag {
+			return fmt.Errorf("cannot use both -p/--previous and -i/--interactive flags")
+		}
 
 		// Create UI provider based on mode
 		var uiProvider ui.UIProvider
-		if ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
+		if !previousFlag && ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
 			uiProvider = ui.NewInteractiveUI()
 		} else {
 			uiProvider = ui.NewCLIUI()
+		}
+
+		// Handle previous flag
+		if previousFlag {
+			return handlePreviousConfig(configHandler, uiProvider)
 		}
 
 		// Execute use operation
@@ -99,6 +117,51 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 	return nil
 }
 
+// handlePreviousConfig handles switching to the previous configuration
+func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIProvider) error {
+	// Get previous configuration
+	previousName, err := configHandler.GetPreviousConfig()
+	if err != nil {
+		if err.Error() == "no previous configuration available" {
+			uiProvider.ShowWarning("No previous configuration available")
+			fmt.Println("💡 Use 'cc-switch use <name>' to switch configurations first")
+			return nil
+		}
+		if strings.Contains(err.Error(), "no longer exists") {
+			uiProvider.ShowWarning(err.Error())
+			fmt.Println("💡 The previous configuration has been deleted")
+			return nil
+		}
+		uiProvider.ShowError(err)
+		return err
+	}
+
+	// Get current configuration for display
+	currentName, _ := configHandler.GetCurrentConfig()
+
+	// Check if previous is same as current (edge case)
+	if previousName == currentName {
+		uiProvider.ShowWarning("Previous configuration '%s' is the same as current", previousName)
+		return nil
+	}
+
+	// Execute switch
+	if err := configHandler.UseConfig(previousName); err != nil {
+		uiProvider.ShowError(err)
+		return err
+	}
+
+	// Show success message with context
+	if currentName != "" {
+		uiProvider.ShowSuccess("Switched to configuration '%s' (previous: '%s')", previousName, currentName)
+	} else {
+		uiProvider.ShowSuccess("Switched to configuration '%s'", previousName)
+	}
+	
+	return nil
+}
+
 func init() {
 	useCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
+	useCmd.Flags().BoolP("previous", "p", false, "Switch to previous configuration")
 }
