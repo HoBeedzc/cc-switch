@@ -9,10 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var newTemplate string
+
 var newCmd = &cobra.Command{
 	Use:   "new <name>",
 	Short: "Create a new configuration",
-	Long:  `Create a new configuration with empty template structure ready for customization.`,
+	Long: `Create a new configuration with template structure ready for customization.
+
+You can specify a template to use when creating the configuration:
+- Default template: cc-switch new <name>
+- Specific template: cc-switch new <name> -t <template> or cc-switch new <name> --template <template>
+
+If the specified template does not exist, the default template will be used.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) < 1 {
 			return fmt.Errorf(`Missing required argument: configuration name
@@ -51,15 +59,33 @@ Use 'cc-switch new --help' for more information.`)
 			return fmt.Errorf("configuration '%s' already exists", name)
 		}
 
-		// 创建新配置
-		if err := cm.CreateProfile(name); err != nil {
+		// 获取模板名称
+		templateName, _ := cmd.Flags().GetString("template")
+		if templateName == "" {
+			templateName = "default"
+		}
+
+		// 检查模板是否存在
+		if !cm.TemplateExists(templateName) {
+			if templateName != "default" {
+				color.Yellow("Warning: template '%s' not found, using default template", templateName)
+				templateName = "default"
+			}
+		}
+
+		// 从模板创建新配置
+		if err := cm.CreateProfileFromTemplate(name, templateName); err != nil {
 			return err
 		}
 
-		color.Green("✓ Configuration '%s' created successfully", name)
+		color.Green("✓ Configuration '%s' created successfully from template '%s'", name, templateName)
 		fmt.Printf("Use 'cc-switch edit %s' to customize the configuration.\n", name)
 		fmt.Printf("Use 'cc-switch use %s' to switch to this configuration.\n", name)
 
 		return nil
 	},
+}
+
+func init() {
+	newCmd.Flags().StringVarP(&newTemplate, "template", "t", "", "Template to use for new configuration (default: default)")
 }

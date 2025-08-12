@@ -347,3 +347,184 @@ func (h *configHandler) getEditor(useNano bool) string {
 	// 3. Default to vim
 	return "vim"
 }
+
+// Template Management Methods
+
+// ListTemplates returns all available templates
+func (h *configHandler) ListTemplates() ([]string, error) {
+	return h.configManager.ListTemplates()
+}
+
+// CreateTemplate creates a new template
+func (h *configHandler) CreateTemplate(name string) error {
+	if name == "" {
+		return fmt.Errorf("template name cannot be empty")
+	}
+
+	// Check if template already exists
+	if h.configManager.TemplateExists(name) {
+		return fmt.Errorf("template '%s' already exists", name)
+	}
+
+	return h.configManager.CreateTemplate(name)
+}
+
+// ValidateTemplateExists checks if a template exists
+func (h *configHandler) ValidateTemplateExists(name string) error {
+	if !h.configManager.TemplateExists(name) {
+		return fmt.Errorf("template '%s' does not exist", name)
+	}
+	return nil
+}
+
+// EditTemplate edits a template
+func (h *configHandler) EditTemplate(name string, field string, useNano bool) error {
+	// Validate template exists
+	if err := h.ValidateTemplateExists(name); err != nil {
+		return err
+	}
+
+	if field != "" {
+		// Field editing mode
+		return h.editTemplateField(name, field)
+	} else {
+		// Editor mode
+		return h.editTemplateWithEditor(name, useNano)
+	}
+}
+
+// DeleteTemplate deletes a template
+func (h *configHandler) DeleteTemplate(name string) error {
+	// Validate template exists
+	if err := h.ValidateTemplateExists(name); err != nil {
+		return err
+	}
+
+	return h.configManager.DeleteTemplate(name)
+}
+
+// editTemplateField edits a specific field in the template
+func (h *configHandler) editTemplateField(name, field string) error {
+	content, err := h.configManager.GetTemplateContent(name)
+	if err != nil {
+		return fmt.Errorf("failed to read template: %w", err)
+	}
+
+	// Parse field path (supports nested fields, like "env.ANTHROPIC_API_KEY")
+	fieldParts := strings.Split(field, ".")
+
+	// Display current value
+	currentValue := h.getNestedValue(content, fieldParts)
+	fmt.Printf("Current value of '%s': ", field)
+	if currentValue != nil {
+		currentValueJson, _ := json.Marshal(currentValue)
+		fmt.Println(string(currentValueJson))
+	} else {
+		fmt.Println("<not set>")
+	}
+
+	// Get new value
+	fmt.Print("Enter new value (JSON format): ")
+	var newValueStr string
+	fmt.Scanln(&newValueStr)
+
+	if newValueStr == "" {
+		return fmt.Errorf("no value provided")
+	}
+
+	// Parse new value
+	var newValue interface{}
+	if err := json.Unmarshal([]byte(newValueStr), &newValue); err != nil {
+		return fmt.Errorf("invalid JSON format for new value: %w", err)
+	}
+
+	// Set new value
+	if err := h.setNestedValue(content, fieldParts, newValue); err != nil {
+		return fmt.Errorf("failed to set field value: %w", err)
+	}
+
+	// Save changes
+	if err := h.configManager.UpdateTemplate(name, content); err != nil {
+		return fmt.Errorf("failed to update template: %w", err)
+	}
+
+	return nil
+}
+
+// editTemplateWithEditor uses system editor to edit template
+func (h *configHandler) editTemplateWithEditor(name string, useNano bool) error {
+	// Get current template content
+	content, err := h.configManager.GetTemplateContent(name)
+	if err != nil {
+		return fmt.Errorf("failed to read template: %w", err)
+	}
+
+	// Create temporary file
+	tmpFile, err := os.CreateTemp("", fmt.Sprintf("cc-switch-template-%s-*.json", name))
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// Write current content to temporary file
+	jsonData, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to format JSON: %w", err)
+	}
+
+	if _, err := tmpFile.Write(jsonData); err != nil {
+		return fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+	tmpFile.Close()
+
+	// Get file modification time (to detect changes)
+	stat, err := os.Stat(tmpFile.Name())
+	if err != nil {
+		return fmt.Errorf("failed to get file stats: %w", err)
+	}
+	originalModTime := stat.ModTime()
+
+	// Determine editor
+	editor := h.getEditor(useNano)
+
+	// Launch editor
+	fmt.Printf("Opening template '%s' in %s...\n", name, editor)
+	cmd := exec.Command(editor, tmpFile.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("editor exited with error: %w", err)
+	}
+
+	// Check for changes
+	stat, err = os.Stat(tmpFile.Name())
+	if err != nil {
+		return fmt.Errorf("failed to get file stats after editing: %w", err)
+	}
+
+	if stat.ModTime().Equal(originalModTime) {
+		return fmt.Errorf("no changes detected")
+	}
+
+	// Read edited content
+	editedData, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		return fmt.Errorf("failed to read edited file: %w", err)
+	}
+
+	// Validate JSON format
+	var editedContent map[string]interface{}
+	if err := json.Unmarshal(editedData, &editedContent); err != nil {
+		return fmt.Errorf("invalid JSON format: %w", err)
+	}
+
+	// Save changes
+	if err := h.configManager.UpdateTemplate(name, editedContent); err != nil {
+		return fmt.Errorf("failed to update template: %w", err)
+	}
+
+	return nil
+}

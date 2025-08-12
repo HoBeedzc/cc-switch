@@ -11,18 +11,24 @@ import (
 )
 
 var (
-	editField string
-	useNano   bool
+	editField     string
+	useNano       bool
+	templateName  string
+	listTemplates bool
 )
 
 var editCmd = &cobra.Command{
 	Use:   "edit [name]",
-	Short: "Edit configuration content",
-	Long: `Edit the content of a specified configuration using your system editor.
+	Short: "Edit configuration or template content",
+	Long: `Edit the content of a configuration or template using your system editor.
 
-Modes:
+Configuration Mode:
 - Interactive: cc-switch edit (no arguments) or cc-switch edit -i
 - CLI: cc-switch edit <name>
+
+Template Mode:
+- Edit template: cc-switch edit -t <template-name> or cc-switch edit --template <template-name>
+- List templates: cc-switch edit -t --list or cc-switch edit --template --list
 
 The interactive mode allows you to browse and select configurations with arrow keys.
 
@@ -45,9 +51,23 @@ Changes are validated for JSON syntax before saving.`,
 		}
 
 		configHandler := handler.NewConfigHandler(cm)
-		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
+		templateName, _ := cmd.Flags().GetString("template")
+		listTemplates, _ := cmd.Flags().GetBool("list")
 		field, _ := cmd.Flags().GetString("field")
 		nano, _ := cmd.Flags().GetBool("nano")
+
+		// Template mode handling
+		if listTemplates {
+			// If just --list without template name, list templates
+			return executeListTemplates(configHandler)
+		}
+		
+		if templateName != "" {
+			return executeEditTemplate(configHandler, templateName, field, nano)
+		}
+
+		// Regular configuration editing mode
+		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
 
 		// Create UI provider based on mode
 		var uiProvider ui.UIProvider
@@ -114,8 +134,69 @@ func executeEdit(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, 
 	return nil
 }
 
+// executeListTemplates handles listing templates
+func executeListTemplates(configHandler handler.ConfigHandler) error {
+	templates, err := configHandler.ListTemplates()
+	if err != nil {
+		return fmt.Errorf("failed to list templates: %w", err)
+	}
+
+	if len(templates) == 0 {
+		fmt.Println("No templates found.")
+		return nil
+	}
+
+	fmt.Println("Available templates:")
+	for _, template := range templates {
+		fmt.Printf("  %s\n", template)
+	}
+
+	return nil
+}
+
+// executeEditTemplate handles template editing
+func executeEditTemplate(configHandler handler.ConfigHandler, templateName string, field string, useNano bool) error {
+	if templateName == "" {
+		return fmt.Errorf("template name is required")
+	}
+
+	// Check if template exists, create if it doesn't
+	if err := configHandler.ValidateTemplateExists(templateName); err != nil {
+		// Template doesn't exist, create it
+		fmt.Printf("Template '%s' does not exist. Creating...\n", templateName)
+		if err := configHandler.CreateTemplate(templateName); err != nil {
+			return fmt.Errorf("failed to create template: %w", err)
+		}
+		fmt.Printf("Template '%s' created successfully.\n", templateName)
+	}
+
+	// Execute edit
+	if err := configHandler.EditTemplate(templateName, field, useNano); err != nil {
+		// Handle specific error messages
+		if err.Error() == "no changes detected" {
+			fmt.Println("No changes detected")
+			return nil
+		}
+		if err.Error() == "no value provided" {
+			fmt.Println("No changes made")
+			return nil
+		}
+		return err
+	}
+
+	if field != "" {
+		fmt.Printf("Field '%s' updated successfully in template '%s'\n", field, templateName)
+	} else {
+		fmt.Printf("Template '%s' updated successfully\n", templateName)
+	}
+	
+	return nil
+}
+
 func init() {
 	editCmd.Flags().StringVar(&editField, "field", "", "Edit a specific field (e.g., 'env.ANTHROPIC_API_KEY')")
 	editCmd.Flags().BoolVar(&useNano, "nano", false, "Use nano editor instead of default")
 	editCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
+	editCmd.Flags().StringVarP(&templateName, "template", "t", "", "Edit template instead of configuration")
+	editCmd.Flags().BoolVar(&listTemplates, "list", false, "List available templates (use with --template)")
 }

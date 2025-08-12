@@ -11,11 +11,12 @@ import (
 
 // ConfigManager 管理Claude配置切换
 type ConfigManager struct {
-	claudeDir    string
-	profilesDir  string
-	currentFile  string
-	settingsFile string
-	historyFile  string
+	claudeDir     string
+	profilesDir   string
+	templatesDir  string
+	currentFile   string
+	settingsFile  string
+	historyFile   string
 }
 
 // Profile 配置文件信息
@@ -42,16 +43,18 @@ func NewConfigManager() (*ConfigManager, error) {
 
 	claudeDir := filepath.Join(homeDir, ".claude")
 	profilesDir := filepath.Join(claudeDir, "profiles")
+	templatesDir := filepath.Join(profilesDir, "templates")
 	currentFile := filepath.Join(claudeDir, ".current")
 	settingsFile := filepath.Join(claudeDir, "settings.json")
 	historyFile := filepath.Join(profilesDir, ".history")
 
 	cm := &ConfigManager{
-		claudeDir:    claudeDir,
-		profilesDir:  profilesDir,
-		currentFile:  currentFile,
-		settingsFile: settingsFile,
-		historyFile:  historyFile,
+		claudeDir:     claudeDir,
+		profilesDir:   profilesDir,
+		templatesDir:  templatesDir,
+		currentFile:   currentFile,
+		settingsFile:  settingsFile,
+		historyFile:   historyFile,
 	}
 
 	// 初始化检查
@@ -67,6 +70,16 @@ func (cm *ConfigManager) Initialize() error {
 	// 创建profiles目录
 	if err := os.MkdirAll(cm.profilesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create profiles directory: %w", err)
+	}
+
+	// 创建templates目录
+	if err := os.MkdirAll(cm.templatesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create templates directory: %w", err)
+	}
+
+	// 初始化默认模板
+	if err := cm.initializeDefaultTemplate(); err != nil {
+		return fmt.Errorf("failed to initialize default template: %w", err)
 	}
 
 	// 检查settings.json是否存在
@@ -124,6 +137,11 @@ func (cm *ConfigManager) ListProfiles() ([]Profile, error) {
 
 // CreateProfile 创建新配置（从模板）
 func (cm *ConfigManager) CreateProfile(name string) error {
+	return cm.CreateProfileFromTemplate(name, "default")
+}
+
+// CreateProfileFromTemplate 从指定模板创建新配置
+func (cm *ConfigManager) CreateProfileFromTemplate(name, templateName string) error {
 	if name == "" {
 		return fmt.Errorf("profile name cannot be empty")
 	}
@@ -134,27 +152,15 @@ func (cm *ConfigManager) CreateProfile(name string) error {
 		return fmt.Errorf("profile '%s' already exists", name)
 	}
 
-	// 创建配置模板
-	template := map[string]interface{}{
-		"env": map[string]interface{}{
-			"ANTHROPIC_AUTH_TOKEN": "",
-			"ANTHROPIC_BASE_URL":   "",
-		},
-		"permissions": map[string]interface{}{
-			"allow": []interface{}{},
-			"deny":  []interface{}{},
-		},
+	// 检查模板是否存在
+	templatePath := filepath.Join(cm.templatesDir, templateName+".json")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		return fmt.Errorf("template '%s' does not exist", templateName)
 	}
 
-	// 序列化模板
-	jsonData, err := json.MarshalIndent(template, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to create template: %w", err)
-	}
-
-	// 写入文件
-	if err := os.WriteFile(profilePath, jsonData, 0600); err != nil {
-		return fmt.Errorf("failed to create profile: %w", err)
+	// 从模板复制创建配置
+	if err := cm.copyFile(templatePath, profilePath); err != nil {
+		return fmt.Errorf("failed to create profile from template: %w", err)
 	}
 
 	return nil
@@ -593,4 +599,214 @@ func (cm *ConfigManager) cleanupHistory() error {
 	history.History = validHistory
 
 	return cm.saveHistory(history)
+}
+
+// Template Management Methods
+
+// initializeDefaultTemplate 初始化默认模板
+func (cm *ConfigManager) initializeDefaultTemplate() error {
+	defaultTemplatePath := filepath.Join(cm.templatesDir, "default.json")
+	
+	// 如果默认模板已存在，直接返回
+	if _, err := os.Stat(defaultTemplatePath); err == nil {
+		return nil
+	}
+
+	// 创建默认模板内容
+	template := map[string]interface{}{
+		"env": map[string]interface{}{
+			"ANTHROPIC_AUTH_TOKEN": "",
+			"ANTHROPIC_BASE_URL":   "",
+		},
+		"permissions": map[string]interface{}{
+			"allow": []interface{}{},
+			"deny":  []interface{}{},
+		},
+	}
+
+	// 序列化模板
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to create template data: %w", err)
+	}
+
+	// 写入默认模板文件
+	if err := os.WriteFile(defaultTemplatePath, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to create default template: %w", err)
+	}
+
+	return nil
+}
+
+// ListTemplates 列出所有模板
+func (cm *ConfigManager) ListTemplates() ([]string, error) {
+	entries, err := os.ReadDir(cm.templatesDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read templates directory: %w", err)
+	}
+
+	var templates []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		name := strings.TrimSuffix(entry.Name(), ".json")
+		templates = append(templates, name)
+	}
+
+	return templates, nil
+}
+
+// TemplateExists 检查模板是否存在
+func (cm *ConfigManager) TemplateExists(name string) bool {
+	templatePath := filepath.Join(cm.templatesDir, name+".json")
+	_, err := os.Stat(templatePath)
+	return err == nil
+}
+
+// CreateTemplate 创建新模板
+func (cm *ConfigManager) CreateTemplate(name string) error {
+	if name == "" {
+		return fmt.Errorf("template name cannot be empty")
+	}
+
+	templatePath := filepath.Join(cm.templatesDir, name+".json")
+	
+	// 检查模板是否已存在
+	if _, err := os.Stat(templatePath); err == nil {
+		return fmt.Errorf("template '%s' already exists", name)
+	}
+
+	// 创建空模板内容（基于默认模板）
+	template := map[string]interface{}{
+		"env": map[string]interface{}{
+			"ANTHROPIC_AUTH_TOKEN": "",
+			"ANTHROPIC_BASE_URL":   "",
+		},
+		"permissions": map[string]interface{}{
+			"allow": []interface{}{},
+			"deny":  []interface{}{},
+		},
+	}
+
+	// 序列化模板
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to create template: %w", err)
+	}
+
+	// 写入文件
+	if err := os.WriteFile(templatePath, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to create template: %w", err)
+	}
+
+	return nil
+}
+
+// GetTemplateContent 获取模板内容
+func (cm *ConfigManager) GetTemplateContent(name string) (map[string]interface{}, error) {
+	templatePath := filepath.Join(cm.templatesDir, name+".json")
+
+	// 检查模板是否存在
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("template '%s' does not exist", name)
+	}
+
+	// 读取模板文件
+	data, err := os.ReadFile(templatePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read template file: %w", err)
+	}
+
+	// 解析JSON内容
+	var content map[string]interface{}
+	if err := json.Unmarshal(data, &content); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON content: %w", err)
+	}
+
+	return content, nil
+}
+
+// UpdateTemplate 更新模板内容
+func (cm *ConfigManager) UpdateTemplate(name string, content map[string]interface{}) error {
+	templatePath := filepath.Join(cm.templatesDir, name+".json")
+
+	// 检查模板是否存在
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		return fmt.Errorf("template '%s' does not exist", name)
+	}
+
+	// 验证JSON内容
+	if err := cm.validateTemplateContent(content); err != nil {
+		return fmt.Errorf("invalid template content: %w", err)
+	}
+
+	// 创建备份
+	backupPath := templatePath + ".backup"
+	if err := cm.copyFile(templatePath, backupPath); err != nil {
+		return fmt.Errorf("failed to create backup: %w", err)
+	}
+
+	// 序列化新内容
+	jsonData, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize JSON: %w", err)
+	}
+
+	// 原子性写入
+	tempFile := templatePath + ".tmp"
+	if err := os.WriteFile(tempFile, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	// 原子性重命名
+	if err := os.Rename(tempFile, templatePath); err != nil {
+		os.Remove(tempFile) // 清理临时文件
+		return fmt.Errorf("failed to update template: %w", err)
+	}
+
+	// 清理备份文件（更新成功后）
+	os.Remove(backupPath)
+
+	return nil
+}
+
+// DeleteTemplate 删除模板
+func (cm *ConfigManager) DeleteTemplate(name string) error {
+	if name == "" {
+		return fmt.Errorf("template name cannot be empty")
+	}
+
+	if name == "default" {
+		return fmt.Errorf("cannot delete default template")
+	}
+
+	templatePath := filepath.Join(cm.templatesDir, name+".json")
+
+	// 检查模板是否存在
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		return fmt.Errorf("template '%s' does not exist", name)
+	}
+
+	// 删除模板文件
+	if err := os.Remove(templatePath); err != nil {
+		return fmt.Errorf("failed to delete template: %w", err)
+	}
+
+	return nil
+}
+
+// validateTemplateContent 验证模板内容
+func (cm *ConfigManager) validateTemplateContent(content map[string]interface{}) error {
+	// 基本JSON格式验证（通过能够unmarshal已经验证）
+	if content == nil {
+		return fmt.Errorf("content cannot be nil")
+	}
+
+	// 验证是否可以序列化
+	if _, err := json.Marshal(content); err != nil {
+		return fmt.Errorf("content cannot be serialized to JSON: %w", err)
+	}
+
+	return nil
 }
