@@ -17,6 +17,13 @@ type ConfigHandler interface {
 	MoveConfig(oldName, newName string) error
 	CopyConfig(sourceName, destName string) error
 
+	// Template management operations
+	ListTemplates() ([]string, error)
+	CreateTemplate(name string) error
+	EditTemplate(name string, field string, useNano bool) error
+	DeleteTemplate(name string) error
+	ValidateTemplateExists(name string) error
+
 	// Helper operations
 	ValidateConfigExists(name string) error
 	GetCurrentConfig() (string, error)
@@ -69,4 +76,18 @@ type CopyResult struct {
 	DestName   string `json:"dest_name"`
 	Success    bool   `json:"success"`
 	Message    string `json:"message"`
+}
+
+// TemplateView represents the view of a template
+type TemplateView struct {
+	Name    string                 `json:"name"`
+	Path    string                 `json:"path"`
+	Content map[string]interface{} `json:"content"`
+}
+
+// TemplateResult represents the result of a template operation
+type TemplateResult struct {
+	Name    string `json:"name"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 }
