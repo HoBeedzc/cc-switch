@@ -86,6 +86,20 @@ func NewConfigManagerNoInit() (*ConfigManager, error) {
 	return cm, nil
 }
 
+// validateProfileName 验证配置名称是否有效
+func (cm *ConfigManager) validateProfileName(name string) error {
+	if name == "" {
+		return fmt.Errorf("profile name cannot be empty")
+	}
+	
+	// 检查保留名称
+	if name == "empty_mode" {
+		return fmt.Errorf("'empty_mode' is a reserved name and cannot be used for configurations")
+	}
+	
+	return nil
+}
+
 // Initialize 初始化配置目录和默认配置
 func (cm *ConfigManager) Initialize() error {
 	// 创建profiles目录
@@ -163,8 +177,9 @@ func (cm *ConfigManager) CreateProfile(name string) error {
 
 // CreateProfileFromTemplate 从指定模板创建新配置
 func (cm *ConfigManager) CreateProfileFromTemplate(name, templateName string) error {
-	if name == "" {
-		return fmt.Errorf("profile name cannot be empty")
+	// 验证配置名称
+	if err := cm.validateProfileName(name); err != nil {
+		return err
 	}
 
 	// 检查配置是否已存在
@@ -405,8 +420,13 @@ func (cm *ConfigManager) validateProfileContent(content map[string]interface{}) 
 
 // RenameProfile 重命名配置文件
 func (cm *ConfigManager) RenameProfile(oldName, newName string) error {
-	if oldName == "" || newName == "" {
-		return fmt.Errorf("profile names cannot be empty")
+	// 验证新配置名称
+	if err := cm.validateProfileName(newName); err != nil {
+		return err
+	}
+
+	if oldName == "" {
+		return fmt.Errorf("old profile name cannot be empty")
 	}
 
 	if oldName == newName {
@@ -446,8 +466,13 @@ func (cm *ConfigManager) RenameProfile(oldName, newName string) error {
 
 // CopyProfile 复制配置文件
 func (cm *ConfigManager) CopyProfile(sourceName, destName string) error {
-	if sourceName == "" || destName == "" {
-		return fmt.Errorf("profile names cannot be empty")
+	// 验证目标配置名称
+	if err := cm.validateProfileName(destName); err != nil {
+		return err
+	}
+
+	if sourceName == "" {
+		return fmt.Errorf("source profile name cannot be empty")
 	}
 
 	if sourceName == destName {
