@@ -33,6 +33,13 @@ type ConfigHandler interface {
 	GetCurrentConfig() (string, error)
 	IsCurrentConfig(name string) bool
 	GetPreviousConfig() (string, error)
+
+	// Empty mode operations
+	UseEmptyMode() error
+	RestoreFromEmptyMode() error
+	RestoreToPreviousFromEmptyMode() error
+	IsEmptyMode() bool
+	GetEmptyModeStatus() (*EmptyModeStatus, error)
 }
 
 // ConfigView represents the view of a configuration
@@ -94,4 +101,12 @@ type TemplateResult struct {
 	Name    string `json:"name"`
 	Success bool   `json:"success"`
 	Message string `json:"message"`
+}
+
+// EmptyModeStatus represents the current empty mode status
+type EmptyModeStatus struct {
+	Enabled         bool   `json:"enabled"`
+	PreviousProfile string `json:"previous_profile,omitempty"`
+	CanRestore      bool   `json:"can_restore"`
+	Timestamp       string `json:"timestamp,omitempty"`
 }

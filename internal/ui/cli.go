@@ -32,6 +32,11 @@ func (ui *cliUI) SelectConfiguration(configs []config.Profile, action string) (*
 	return nil, fmt.Errorf("configuration selection not supported in CLI mode")
 }
 
+// SelectConfigurationWithEmptyMode is not supported in CLI mode
+func (ui *cliUI) SelectConfigurationWithEmptyMode(configs []config.Profile, action string, isEmptyMode bool) (*SpecialSelection, error) {
+	return nil, fmt.Errorf("configuration selection not supported in CLI mode")
+}
+
 // SelectAction is not supported in CLI mode
 func (ui *cliUI) SelectAction(selectedConfig *config.Profile) (string, error) {
 	return "", fmt.Errorf("action selection not supported in CLI mode")

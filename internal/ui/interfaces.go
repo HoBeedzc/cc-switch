@@ -5,6 +5,13 @@ import (
 	"cc-switch/internal/handler"
 )
 
+// SpecialSelection represents a selection that could be a profile or a special action
+type SpecialSelection struct {
+	Type    string         // "profile", "empty_mode", "restore"
+	Profile *config.Profile // nil for special actions
+	Action  string         // action name for special selections
+}
+
 // ExecutionMode defines the mode of execution
 type ExecutionMode int
 
@@ -20,6 +27,7 @@ type UIProvider interface {
 
 	// Selection operations
 	SelectConfiguration(configs []config.Profile, action string) (*config.Profile, error)
+	SelectConfigurationWithEmptyMode(configs []config.Profile, action string, isEmptyMode bool) (*SpecialSelection, error)
 	SelectAction(selectedConfig *config.Profile) (string, error)
 
 	// Confirmation operations

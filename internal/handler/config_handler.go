@@ -540,3 +540,47 @@ func (h *configHandler) InitializeConfig(authToken, baseURL string) error {
 func (h *configHandler) IsConfigInitialized() bool {
 	return h.configManager.IsInitialized()
 }
+
+// Empty Mode Operations
+
+// UseEmptyMode enables empty mode (removes settings.json)
+func (h *configHandler) UseEmptyMode() error {
+	return h.configManager.EnableEmptyMode()
+}
+
+// RestoreFromEmptyMode disables empty mode and restores settings
+func (h *configHandler) RestoreFromEmptyMode() error {
+	return h.configManager.DisableEmptyMode()
+}
+
+// RestoreToPreviousFromEmptyMode restores to the previous profile from empty mode
+func (h *configHandler) RestoreToPreviousFromEmptyMode() error {
+	return h.configManager.RestoreToPreviousProfile()
+}
+
+// IsEmptyMode checks if currently in empty mode
+func (h *configHandler) IsEmptyMode() bool {
+	return h.configManager.IsEmptyMode()
+}
+
+// GetEmptyModeStatus returns the current empty mode status
+func (h *configHandler) GetEmptyModeStatus() (*EmptyModeStatus, error) {
+	if !h.configManager.IsEmptyMode() {
+		return &EmptyModeStatus{
+			Enabled:    false,
+			CanRestore: false,
+		}, nil
+	}
+
+	info, err := h.configManager.GetEmptyModeInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get empty mode info: %w", err)
+	}
+
+	return &EmptyModeStatus{
+		Enabled:         true,
+		PreviousProfile: info.PreviousProfile,
+		CanRestore:      info.PreviousProfile != "",
+		Timestamp:       info.Timestamp.Format("2006-01-02 15:04:05"),
+	}, nil
+}
