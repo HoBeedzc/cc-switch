@@ -968,7 +968,13 @@ func (cm *ConfigManager) EnableEmptyMode() error {
 		return fmt.Errorf("failed to save empty mode info: %w", err)
 	}
 
-	// 步骤4: 移除 settings.json（最后步骤）
+	// 步骤4: 更新历史记录，将进入empty mode记录为历史
+	if err := cm.updateHistory("empty_mode"); err != nil {
+		// 历史记录更新失败不应该阻止empty mode启用，只记录错误
+		fmt.Fprintf(os.Stderr, "Warning: failed to update history: %v\n", err)
+	}
+
+	// 步骤5: 移除 settings.json（最后步骤）
 	if err := os.Remove(cm.settingsFile); err != nil {
 		// 回滚操作
 		cm.removeEmptyModeInfo()
@@ -1015,14 +1021,20 @@ func (cm *ConfigManager) DisableEmptyMode() error {
 			// 不是致命错误，记录警告但继续
 			fmt.Fprintf(os.Stderr, "Warning: failed to set current profile marker: %v\n", err)
 		}
+
+		// 步骤3: 更新历史记录，恢复到之前的配置
+		if err := cm.updateHistory(emptyInfo.PreviousProfile); err != nil {
+			// 历史记录更新失败不应该阻止配置恢复，只记录错误
+			fmt.Fprintf(os.Stderr, "Warning: failed to update history: %v\n", err)
+		}
 	}
 
-	// 步骤3: 清理空配置模式文件
+	// 步骤4: 清理空配置模式文件
 	if err := cm.removeEmptyModeInfo(); err != nil {
 		return fmt.Errorf("failed to remove empty mode info: %w", err)
 	}
 
-	// 步骤4: 清理备份文件
+	// 步骤5: 清理备份文件
 	os.Remove(emptyInfo.BackupPath)
 
 	return nil
