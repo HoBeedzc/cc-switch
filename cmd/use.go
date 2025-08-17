@@ -21,7 +21,7 @@ Modes:
 - CLI: cc-switch use <name>
 - Previous: cc-switch use -p or cc-switch use --previous
 - Empty Mode: cc-switch use -e or cc-switch use --empty
-- Restore: cc-switch use --restore
+- Restore: cc-switch use -r or cc-switch use --restore
 
 The interactive mode allows you to browse and select configurations with arrow keys.
 The previous mode switches to the last used configuration.
@@ -183,6 +183,12 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 
 // handlePreviousConfig handles switching to the previous configuration
 func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIProvider) error {
+	// Special handling for empty mode: -p should behave like -r
+	if configHandler.IsEmptyMode() {
+		uiProvider.ShowInfo("In empty mode: using previous (-p) will restore from empty mode")
+		return handleRestoreMode(configHandler, uiProvider)
+	}
+
 	// Get previous configuration
 	previousName, err := configHandler.GetPreviousConfig()
 	if err != nil {
@@ -198,6 +204,12 @@ func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIP
 		}
 		uiProvider.ShowError(err)
 		return err
+	}
+
+	// Special case: if previous is "empty_mode", enter empty mode
+	if previousName == "empty_mode" {
+		uiProvider.ShowInfo("Previous state was empty mode. Entering empty mode...")
+		return handleEmptyMode(configHandler, uiProvider)
 	}
 
 	// Get current configuration for display
@@ -291,5 +303,5 @@ func init() {
 	useCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
 	useCmd.Flags().BoolP("previous", "p", false, "Switch to previous configuration")
 	useCmd.Flags().BoolP("empty", "e", false, "Enable empty mode (remove settings)")
-	useCmd.Flags().Bool("restore", false, "Restore from empty mode to previous configuration")
+	useCmd.Flags().BoolP("restore", "r", false, "Restore from empty mode to previous configuration")
 }
