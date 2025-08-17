@@ -61,7 +61,7 @@ Changes are validated for JSON syntax before saving.`,
 			// If just --list without template name, list templates
 			return executeListTemplates(configHandler)
 		}
-		
+
 		if templateName != "" {
 			return executeEditTemplate(configHandler, templateName, field, nano)
 		}
@@ -189,7 +189,7 @@ func executeEditTemplate(configHandler handler.ConfigHandler, templateName strin
 	} else {
 		fmt.Printf("Template '%s' updated successfully\n", templateName)
 	}
-	
+
 	return nil
 }
 

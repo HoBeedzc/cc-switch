@@ -91,10 +91,10 @@ func (ui *cliUI) GetInput(prompt string, defaultValue string) (string, error) {
 // GetInitInput prompts for initialization input with special handling for empty values
 func (ui *cliUI) GetInitInput(fieldName, description string) (string, error) {
 	fmt.Printf("? %s: ", description)
-	
+
 	var input string
 	fmt.Scanln(&input)
-	
+
 	// For init, empty values are allowed
 	return strings.TrimSpace(input), nil
 }

@@ -27,7 +27,6 @@ The interactive mode allows you to browse and select configurations with arrow k
 			return err
 		}
 
-		// Initialize dependencies
 		cm, err := config.NewConfigManager()
 		if err != nil {
 			return fmt.Errorf("failed to initialize config manager: %w", err)
@@ -36,7 +35,6 @@ The interactive mode allows you to browse and select configurations with arrow k
 		configHandler := handler.NewConfigHandler(cm)
 		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
 
-		// Create UI provider based on mode
 		var uiProvider ui.UIProvider
 		if ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
 			uiProvider = ui.NewInteractiveUI()
@@ -44,14 +42,12 @@ The interactive mode allows you to browse and select configurations with arrow k
 			uiProvider = ui.NewCLIUI()
 		}
 
-		// Execute move operation
 		return executeMove(configHandler, uiProvider, args)
 	},
 }
 
 // executeMove handles the move operation with the given dependencies
 func executeMove(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string) error {
-	// Get all configurations
 	profiles, err := configHandler.ListConfigs()
 	if err != nil {
 		return fmt.Errorf("failed to list profiles: %w", err)
@@ -65,9 +61,7 @@ func executeMove(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, 
 
 	var oldName, newName string
 
-	// Determine execution mode
 	if len(args) == 0 {
-		// Interactive mode - select source configuration
 		selected, err := uiProvider.SelectConfiguration(profiles, "move")
 		if err != nil {
 			return fmt.Errorf("selection cancelled: %w", err)

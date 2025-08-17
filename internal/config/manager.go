@@ -11,13 +11,13 @@ import (
 
 // ConfigManager 管理Claude配置切换
 type ConfigManager struct {
-	claudeDir       string
-	profilesDir     string
-	templatesDir    string
-	currentFile     string
-	settingsFile    string
-	historyFile     string
-	emptyModeFile   string
+	claudeDir     string
+	profilesDir   string
+	templatesDir  string
+	currentFile   string
+	settingsFile  string
+	historyFile   string
+	emptyModeFile string
 }
 
 // Profile 配置文件信息
@@ -74,13 +74,13 @@ func NewConfigManagerNoInit() (*ConfigManager, error) {
 	emptyModeFile := filepath.Join(claudeDir, ".empty_mode")
 
 	cm := &ConfigManager{
-		claudeDir:       claudeDir,
-		profilesDir:     profilesDir,
-		templatesDir:    templatesDir,
-		currentFile:     currentFile,
-		settingsFile:    settingsFile,
-		historyFile:     historyFile,
-		emptyModeFile:   emptyModeFile,
+		claudeDir:     claudeDir,
+		profilesDir:   profilesDir,
+		templatesDir:  templatesDir,
+		currentFile:   currentFile,
+		settingsFile:  settingsFile,
+		historyFile:   historyFile,
+		emptyModeFile: emptyModeFile,
 	}
 
 	return cm, nil
@@ -91,28 +91,25 @@ func (cm *ConfigManager) validateProfileName(name string) error {
 	if name == "" {
 		return fmt.Errorf("profile name cannot be empty")
 	}
-	
+
 	// 检查保留名称
 	if name == "empty_mode" {
 		return fmt.Errorf("'empty_mode' is a reserved name and cannot be used for configurations")
 	}
-	
+
 	return nil
 }
 
 // Initialize 初始化配置目录和默认配置
 func (cm *ConfigManager) Initialize() error {
-	// 创建profiles目录
 	if err := os.MkdirAll(cm.profilesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create profiles directory: %w", err)
 	}
 
-	// 创建templates目录
 	if err := os.MkdirAll(cm.templatesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create templates directory: %w", err)
 	}
 
-	// 初始化默认模板
 	if err := cm.initializeDefaultTemplate(); err != nil {
 		return fmt.Errorf("failed to initialize default template: %w", err)
 	}
@@ -657,7 +654,7 @@ func (cm *ConfigManager) cleanupHistory() error {
 // initializeDefaultTemplate 初始化默认模板
 func (cm *ConfigManager) initializeDefaultTemplate() error {
 	defaultTemplatePath := filepath.Join(cm.templatesDir, "default.json")
-	
+
 	// 如果默认模板已存在，直接返回
 	if _, err := os.Stat(defaultTemplatePath); err == nil {
 		return nil
@@ -722,7 +719,7 @@ func (cm *ConfigManager) CreateTemplate(name string) error {
 	}
 
 	templatePath := filepath.Join(cm.templatesDir, name+".json")
-	
+
 	// 检查模板是否已存在
 	if _, err := os.Stat(templatePath); err == nil {
 		return fmt.Errorf("template '%s' already exists", name)

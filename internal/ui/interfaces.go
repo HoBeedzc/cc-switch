@@ -7,9 +7,9 @@ import (
 
 // SpecialSelection represents a selection that could be a profile or a special action
 type SpecialSelection struct {
-	Type    string         // "profile", "empty_mode", "restore"
+	Type    string          // "profile", "empty_mode", "restore"
 	Profile *config.Profile // nil for special actions
-	Action  string         // action name for special selections
+	Action  string          // action name for special selections
 }
 
 // ExecutionMode defines the mode of execution

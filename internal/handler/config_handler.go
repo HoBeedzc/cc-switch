@@ -13,12 +13,14 @@ import (
 // configHandler implements the ConfigHandler interface
 type configHandler struct {
 	configManager *config.ConfigManager
+	apiTester     *APITester
 }
 
 // NewConfigHandler creates a new config handler instance
 func NewConfigHandler(cm *config.ConfigManager) ConfigHandler {
 	return &configHandler{
 		configManager: cm,
+		apiTester:     NewAPITester(cm),
 	}
 }
 
@@ -583,4 +585,21 @@ func (h *configHandler) GetEmptyModeStatus() (*EmptyModeStatus, error) {
 		CanRestore:      info.PreviousProfile != "",
 		Timestamp:       info.Timestamp.Format("2006-01-02 15:04:05"),
 	}, nil
+}
+
+// API Connectivity Testing Methods
+
+// TestAPIConnectivity tests the API connectivity for a specific profile
+func (h *configHandler) TestAPIConnectivity(profileName string, options TestOptions) (*APITestResult, error) {
+	return h.apiTester.TestAPIConnectivity(profileName, options)
+}
+
+// TestAllConfigurations tests API connectivity for all available configurations
+func (h *configHandler) TestAllConfigurations(options TestOptions) ([]APITestResult, error) {
+	return h.apiTester.TestAllConfigurations(options)
+}
+
+// TestCurrentConfiguration tests the currently active configuration
+func (h *configHandler) TestCurrentConfiguration(options TestOptions) (*APITestResult, error) {
+	return h.apiTester.TestCurrentConfiguration(options)
 }
