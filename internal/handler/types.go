@@ -2,6 +2,7 @@ package handler
 
 import (
 	"cc-switch/internal/config"
+	"time"
 )
 
 // ConfigHandler defines the business logic interface for configuration operations
@@ -40,6 +41,11 @@ type ConfigHandler interface {
 	RestoreToPreviousFromEmptyMode() error
 	IsEmptyMode() bool
 	GetEmptyModeStatus() (*EmptyModeStatus, error)
+
+	// API connectivity testing operations
+	TestAPIConnectivity(profileName string, options TestOptions) (*APITestResult, error)
+	TestAllConfigurations(options TestOptions) ([]APITestResult, error)
+	TestCurrentConfiguration(options TestOptions) (*APITestResult, error)
 }
 
 // ConfigView represents the view of a configuration
@@ -109,4 +115,43 @@ type EmptyModeStatus struct {
 	PreviousProfile string `json:"previous_profile,omitempty"`
 	CanRestore      bool   `json:"can_restore"`
 	Timestamp       string `json:"timestamp,omitempty"`
+}
+
+// API Testing Types
+
+// APITestResult represents connectivity test results for a configuration
+type APITestResult struct {
+	ProfileName   string         `json:"profile_name"`
+	IsConnectable bool           `json:"is_connectable"`
+	ResponseTime  time.Duration  `json:"response_time_ms"`
+	Tests         []EndpointTest `json:"tests"`
+	TestedAt      time.Time      `json:"tested_at"`
+	Error         string         `json:"error,omitempty"`
+}
+
+// EndpointTest represents individual API endpoint test results
+type EndpointTest struct {
+	Endpoint     string        `json:"endpoint"`
+	Method       string        `json:"method"`
+	Status       string        `json:"status"` // "success", "failed", "timeout"
+	StatusCode   int           `json:"status_code"`
+	ResponseTime time.Duration `json:"response_time_ms"`
+	Error        string        `json:"error,omitempty"`
+	Details      string        `json:"details,omitempty"`
+}
+
+// TestOptions controls API test behavior
+type TestOptions struct {
+	Quick      bool          `json:"quick"`
+	Verbose    bool          `json:"verbose"`
+	Timeout    time.Duration `json:"timeout"`
+	Endpoints  []string      `json:"endpoints,omitempty"`
+	JSONOutput bool          `json:"json_output"`
+}
+
+// APICredentials represents extracted API authentication credentials
+type APICredentials struct {
+	APIKey  string `json:"api_key"`
+	BaseURL string `json:"base_url"`
+	Version string `json:"version,omitempty"`
 }

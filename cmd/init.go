@@ -47,19 +47,19 @@ func runInit(cmd *cobra.Command, args []string) error {
 		uiProvider.ShowWarning("当前处于 empty mode，可能会出现未知错误")
 		fmt.Println("💡 建议先使用 'cc-switch use --restore' 或 'cc-switch use <profile>' 退出 empty mode")
 		fmt.Println()
-		
+
 		// Ask user if they want to continue
 		if !uiProvider.ConfirmAction("是否继续初始化？", false) {
 			fmt.Println("初始化已取消")
 			return nil
 		}
 		fmt.Println()
-		
+
 		// If user chooses to continue in empty mode, don't show "already initialized"
 		// message even if profiles exist, because we're in a special state
 	} else {
 		// Only check for existing initialization if NOT in empty mode
-		
+
 		// Check if already initialized (check for profiles directory)
 		homeDir, _ := os.UserHomeDir()
 		profilesDir := filepath.Join(homeDir, ".claude", "profiles")

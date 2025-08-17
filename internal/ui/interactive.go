@@ -95,7 +95,7 @@ func (ui *interactiveUI) SelectConfigurationWithEmptyMode(configs []config.Profi
 	} else {
 		items = append(items, SelectItem{
 			Name:        "<Empty Mode>",
-			Type:        "empty_mode", 
+			Type:        "empty_mode",
 			IsSpecial:   true,
 			Description: "Disable all configurations temporarily",
 		})
@@ -337,12 +337,12 @@ func (ui *interactiveUI) GetInitInput(fieldName, description string) (string, er
 		Label:   description,
 		Default: "",
 	}
-	
+
 	result, err := prompt.Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to get input: %w", err)
 	}
-	
+
 	return strings.TrimSpace(result), nil
 }
 

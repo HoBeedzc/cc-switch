@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	// PBKDF2 parameters
 	PBKDF2Iterations = 100000
 	SaltLength       = 16
 	KeyLength        = 32
@@ -51,7 +50,6 @@ func GenerateNonce() ([]byte, error) {
 
 // EncryptData encrypts data using AES-256-GCM with password
 func EncryptData(data []byte, password string) (*EncryptionData, error) {
-	// Generate salt and derive key
 	salt, err := GenerateSalt()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate salt: %w", err)
@@ -60,25 +58,21 @@ func EncryptData(data []byte, password string) (*EncryptionData, error) {
 	key := DeriveKey(password, salt)
 	defer clearBytes(key) // Clear key from memory
 
-	// Create AES cipher
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
 
-	// Create GCM mode
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
 
-	// Generate nonce
 	nonce, err := GenerateNonce()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate nonce: %w", err)
 	}
 
-	// Encrypt data
 	encrypted := gcm.Seal(nil, nonce, data, nil)
 
 	return &EncryptionData{
@@ -90,23 +84,19 @@ func EncryptData(data []byte, password string) (*EncryptionData, error) {
 
 // DecryptData decrypts data using AES-256-GCM with password
 func DecryptData(encData *EncryptionData, password string) ([]byte, error) {
-	// Derive key from password and salt
 	key := DeriveKey(password, encData.Salt)
 	defer clearBytes(key) // Clear key from memory
 
-	// Create AES cipher
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
 
-	// Create GCM mode
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
 
-	// Decrypt data
 	decrypted, err := gcm.Open(nil, encData.Nonce, encData.Encrypted, nil)
 	if err != nil {
 		return nil, fmt.Errorf("decryption failed (wrong password?): %w", err)

@@ -43,6 +43,7 @@ func init() {
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(testCmd)
 }
 
 // 检查Claude配置是否存在的助手函数
