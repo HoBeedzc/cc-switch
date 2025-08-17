@@ -497,6 +497,11 @@ func (cm *ConfigManager) GetPreviousProfile() (string, error) {
 		return "", fmt.Errorf("no previous configuration available")
 	}
 
+	// Special case: "empty_mode" is a virtual state, not a real profile file
+	if history.Previous == "empty_mode" {
+		return history.Previous, nil
+	}
+
 	// 检查上一个配置是否仍然存在
 	if !cm.ProfileExists(history.Previous) {
 		// 清理无效的历史记录
