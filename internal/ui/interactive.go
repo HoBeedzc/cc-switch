@@ -70,6 +70,84 @@ func (ui *interactiveUI) SelectConfiguration(configs []config.Profile, action st
 	return &configs[i], nil
 }
 
+// SelectConfigurationWithEmptyMode shows an interactive selector including empty mode options
+func (ui *interactiveUI) SelectConfigurationWithEmptyMode(configs []config.Profile, action string, isEmptyMode bool) (*SpecialSelection, error) {
+	// Create special items for the selector
+	type SelectItem struct {
+		Name        string
+		Type        string
+		IsCurrent   bool
+		IsSpecial   bool
+		Profile     *config.Profile
+		Description string
+	}
+
+	var items []SelectItem
+
+	// Add special options based on mode
+	if isEmptyMode {
+		items = append(items, SelectItem{
+			Name:        "<Restore Previous>",
+			Type:        "restore",
+			IsSpecial:   true,
+			Description: "Restore from empty mode to previous configuration",
+		})
+	} else {
+		items = append(items, SelectItem{
+			Name:        "<Empty Mode>",
+			Type:        "empty_mode", 
+			IsSpecial:   true,
+			Description: "Disable all configurations temporarily",
+		})
+	}
+
+	// Add regular configurations
+	for i := range configs {
+		items = append(items, SelectItem{
+			Name:        configs[i].Name,
+			Type:        "profile",
+			IsCurrent:   configs[i].IsCurrent,
+			IsSpecial:   false,
+			Profile:     &configs[i],
+			Description: fmt.Sprintf("Switch to %s configuration", configs[i].Name),
+		})
+	}
+
+	// Custom templates
+	templates := &promptui.SelectTemplates{
+		Label:    "{{ . }}:",
+		Active:   "▶ {{ if .IsSpecial }}{{ .Name | yellow }}{{ else }}{{ .Name | cyan }}{{ end }}{{ if .IsCurrent }} {{ \"(current)\" | green }}{{ end }}",
+		Inactive: "  {{ if .IsSpecial }}{{ .Name | faint }}{{ else }}{{ .Name }}{{ end }}{{ if .IsCurrent }} {{ \"(current)\" | faint }}{{ end }}",
+		Selected: "✓ {{ if .IsSpecial }}{{ .Name | yellow }}{{ else }}{{ .Name | green }}{{ end }}{{ if .IsCurrent }} {{ \"(current)\" | faint }}{{ end }}",
+		Details: `
+--------- Selection Details ----------
+{{ "Option:" | faint }}	{{ .Name }}
+{{ "Type:" | faint }}	{{ if .IsSpecial }}{{ "Special Action" | yellow }}{{ else }}{{ "Configuration" | green }}{{ end }}
+{{ "Description:" | faint }}	{{ .Description }}{{ if .Profile }}
+{{ "Path:" | faint }}	{{ .Profile.Path }}{{ end }}`,
+	}
+
+	prompt := promptui.Select{
+		Label:        fmt.Sprintf("Select configuration to %s", action),
+		Items:        items,
+		Templates:    templates,
+		Size:         10,
+		HideSelected: false,
+	}
+
+	i, _, err := prompt.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	selected := &items[i]
+	return &SpecialSelection{
+		Type:    selected.Type,
+		Profile: selected.Profile,
+		Action:  selected.Type,
+	}, nil
+}
+
 // SelectWithPreview provides configuration selection with preview
 func (ui *interactiveUI) SelectWithPreview(configs []config.Profile, action string) (*config.Profile, error) {
 	// For now, use the same implementation as SelectConfiguration

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -51,7 +52,27 @@ func checkClaudeConfig() error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	settingsPath := fmt.Sprintf("%s/.claude/settings.json", homeDir)
+	claudeDir := filepath.Join(homeDir, ".claude")
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	emptyModeFile := filepath.Join(claudeDir, ".empty_mode")
+
+	// Check if in empty mode - if so, allow the operation
+	if _, err := os.Stat(emptyModeFile); err == nil {
+		return nil // Empty mode is valid
+	}
+
+	// Check for profiles directory (indicates cc-switch is initialized)
+	profilesDir := filepath.Join(claudeDir, "profiles")
+	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
+		return fmt.Errorf(`Claude configuration not found at %s
+
+To initialize your Claude Code configuration, run:
+  cc-switch init
+
+This will guide you through the initial setup process.`, settingsPath)
+	}
+
+	// If not in empty mode, settings.json should exist
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 		return fmt.Errorf(`Claude configuration not found at %s
 

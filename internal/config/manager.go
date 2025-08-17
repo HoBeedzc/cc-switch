@@ -11,12 +11,13 @@ import (
 
 // ConfigManager 管理Claude配置切换
 type ConfigManager struct {
-	claudeDir     string
-	profilesDir   string
-	templatesDir  string
-	currentFile   string
-	settingsFile  string
-	historyFile   string
+	claudeDir       string
+	profilesDir     string
+	templatesDir    string
+	currentFile     string
+	settingsFile    string
+	historyFile     string
+	emptyModeFile   string
 }
 
 // Profile 配置文件信息
@@ -32,6 +33,14 @@ type ConfigHistory struct {
 	Previous  string    `json:"previous"`
 	History   []string  `json:"history"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// EmptyModeInfo 空配置模式信息
+type EmptyModeInfo struct {
+	Enabled         bool      `json:"enabled"`
+	BackupPath      string    `json:"backup_path"`
+	PreviousProfile string    `json:"previous_profile"`
+	Timestamp       time.Time `json:"timestamp"`
 }
 
 // NewConfigManager 创建新的配置管理器
@@ -62,14 +71,16 @@ func NewConfigManagerNoInit() (*ConfigManager, error) {
 	currentFile := filepath.Join(claudeDir, ".current")
 	settingsFile := filepath.Join(claudeDir, "settings.json")
 	historyFile := filepath.Join(profilesDir, ".history")
+	emptyModeFile := filepath.Join(claudeDir, ".empty_mode")
 
 	cm := &ConfigManager{
-		claudeDir:     claudeDir,
-		profilesDir:   profilesDir,
-		templatesDir:  templatesDir,
-		currentFile:   currentFile,
-		settingsFile:  settingsFile,
-		historyFile:   historyFile,
+		claudeDir:       claudeDir,
+		profilesDir:     profilesDir,
+		templatesDir:    templatesDir,
+		currentFile:     currentFile,
+		settingsFile:    settingsFile,
+		historyFile:     historyFile,
+		emptyModeFile:   emptyModeFile,
 	}
 
 	return cm, nil
@@ -890,5 +901,189 @@ func (cm *ConfigManager) writeConfigFile(filePath string, content map[string]int
 		return fmt.Errorf("failed to create configuration file: %w", err)
 	}
 
+	return nil
+}
+
+// Empty Mode Methods
+
+// IsEmptyMode 检查是否处于空配置模式
+func (cm *ConfigManager) IsEmptyMode() bool {
+	_, err := os.Stat(cm.emptyModeFile)
+	return err == nil
+}
+
+// GetEmptyModeInfo 获取空配置模式信息
+func (cm *ConfigManager) GetEmptyModeInfo() (*EmptyModeInfo, error) {
+	if !cm.IsEmptyMode() {
+		return nil, fmt.Errorf("not in empty mode")
+	}
+
+	data, err := os.ReadFile(cm.emptyModeFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read empty mode file: %w", err)
+	}
+
+	var info EmptyModeInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return nil, fmt.Errorf("failed to parse empty mode info: %w", err)
+	}
+
+	return &info, nil
+}
+
+// EnableEmptyMode 启用空配置模式
+func (cm *ConfigManager) EnableEmptyMode() error {
+	// 检查当前状态
+	if cm.IsEmptyMode() {
+		return fmt.Errorf("already in empty mode")
+	}
+
+	// 检查settings.json是否存在
+	if _, err := os.Stat(cm.settingsFile); os.IsNotExist(err) {
+		return fmt.Errorf("no settings.json found to backup")
+	}
+
+	// 创建备份路径
+	backupPath := filepath.Join(cm.profilesDir, ".empty_backup_settings.json")
+
+	// 获取当前配置名
+	currentProfile, _ := cm.getCurrentProfile()
+
+	// 步骤1: 原子性备份 settings.json
+	if err := cm.copyFile(cm.settingsFile, backupPath); err != nil {
+		return fmt.Errorf("failed to backup settings: %w", err)
+	}
+
+	// 步骤2: 创建状态标记
+	emptyInfo := &EmptyModeInfo{
+		Enabled:         true,
+		BackupPath:      backupPath,
+		PreviousProfile: currentProfile,
+		Timestamp:       time.Now(),
+	}
+
+	// 步骤3: 保存状态（原子性）
+	if err := cm.saveEmptyModeInfo(emptyInfo); err != nil {
+		os.Remove(backupPath) // 清理备份
+		return fmt.Errorf("failed to save empty mode info: %w", err)
+	}
+
+	// 步骤4: 移除 settings.json（最后步骤）
+	if err := os.Remove(cm.settingsFile); err != nil {
+		// 回滚操作
+		cm.removeEmptyModeInfo()
+		os.Remove(backupPath)
+		return fmt.Errorf("failed to remove settings file: %w", err)
+	}
+
+	return nil
+}
+
+// DisableEmptyMode 禁用空配置模式
+func (cm *ConfigManager) DisableEmptyMode() error {
+	// 检查当前状态
+	if !cm.IsEmptyMode() {
+		return fmt.Errorf("not in empty mode")
+	}
+
+	// 获取空配置模式信息
+	emptyInfo, err := cm.GetEmptyModeInfo()
+	if err != nil {
+		return fmt.Errorf("failed to get empty mode info: %w", err)
+	}
+
+	// 检查备份文件是否存在
+	if _, err := os.Stat(emptyInfo.BackupPath); os.IsNotExist(err) {
+		return fmt.Errorf("backup file not found: %s", emptyInfo.BackupPath)
+	}
+
+	// 步骤1: 恢复 settings.json（原子性）
+	tempFile := cm.settingsFile + ".tmp"
+	if err := cm.copyFile(emptyInfo.BackupPath, tempFile); err != nil {
+		return fmt.Errorf("failed to prepare settings restoration: %w", err)
+	}
+
+	// 原子性重命名
+	if err := os.Rename(tempFile, cm.settingsFile); err != nil {
+		os.Remove(tempFile) // 清理临时文件
+		return fmt.Errorf("failed to restore settings file: %w", err)
+	}
+
+	// 步骤2: 更新当前配置标记（如果有之前的配置）
+	if emptyInfo.PreviousProfile != "" {
+		if err := cm.setCurrentProfile(emptyInfo.PreviousProfile); err != nil {
+			// 不是致命错误，记录警告但继续
+			fmt.Fprintf(os.Stderr, "Warning: failed to set current profile marker: %v\n", err)
+		}
+	}
+
+	// 步骤3: 清理空配置模式文件
+	if err := cm.removeEmptyModeInfo(); err != nil {
+		return fmt.Errorf("failed to remove empty mode info: %w", err)
+	}
+
+	// 步骤4: 清理备份文件
+	os.Remove(emptyInfo.BackupPath)
+
+	return nil
+}
+
+// RestoreToPreviousProfile 恢复到之前的配置
+func (cm *ConfigManager) RestoreToPreviousProfile() error {
+	if !cm.IsEmptyMode() {
+		return fmt.Errorf("not in empty mode")
+	}
+
+	emptyInfo, err := cm.GetEmptyModeInfo()
+	if err != nil {
+		return fmt.Errorf("failed to get empty mode info: %w", err)
+	}
+
+	if emptyInfo.PreviousProfile == "" {
+		return fmt.Errorf("no previous profile to restore to")
+	}
+
+	// 先禁用空配置模式
+	if err := cm.DisableEmptyMode(); err != nil {
+		return fmt.Errorf("failed to disable empty mode: %w", err)
+	}
+
+	// 然后切换到之前的配置（如果不是已经激活的话）
+	currentProfile, _ := cm.getCurrentProfile()
+	if currentProfile != emptyInfo.PreviousProfile {
+		if err := cm.UseProfile(emptyInfo.PreviousProfile); err != nil {
+			return fmt.Errorf("failed to switch to previous profile '%s': %w", emptyInfo.PreviousProfile, err)
+		}
+	}
+
+	return nil
+}
+
+// saveEmptyModeInfo 保存空配置模式信息
+func (cm *ConfigManager) saveEmptyModeInfo(info *EmptyModeInfo) error {
+	jsonData, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal empty mode info: %w", err)
+	}
+
+	// 原子性写入
+	tempFile := cm.emptyModeFile + ".tmp"
+	if err := os.WriteFile(tempFile, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to write temporary empty mode file: %w", err)
+	}
+
+	if err := os.Rename(tempFile, cm.emptyModeFile); err != nil {
+		os.Remove(tempFile) // 清理临时文件
+		return fmt.Errorf("failed to save empty mode file: %w", err)
+	}
+
+	return nil
+}
+
+// removeEmptyModeInfo 移除空配置模式信息
+func (cm *ConfigManager) removeEmptyModeInfo() error {
+	if err := os.Remove(cm.emptyModeFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove empty mode file: %w", err)
+	}
 	return nil
 }
