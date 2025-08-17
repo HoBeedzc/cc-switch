@@ -528,3 +528,15 @@ func (h *configHandler) editTemplateWithEditor(name string, useNano bool) error 
 
 	return nil
 }
+
+// Init Command Support Methods
+
+// InitializeConfig 初始化Claude配置
+func (h *configHandler) InitializeConfig(authToken, baseURL string) error {
+	return h.configManager.InitializeFromScratch(authToken, baseURL)
+}
+
+// IsConfigInitialized 检查配置是否已初始化
+func (h *configHandler) IsConfigInitialized() bool {
+	return h.configManager.IsInitialized()
+}

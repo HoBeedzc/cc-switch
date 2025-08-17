@@ -41,6 +41,7 @@ func init() {
 	rootCmd.AddCommand(editCmd)
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
+	rootCmd.AddCommand(initCmd)
 }
 
 // 检查Claude配置是否存在的助手函数
@@ -54,8 +55,10 @@ func checkClaudeConfig() error {
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 		return fmt.Errorf(`Claude configuration not found at %s
 
-Please ensure Claude Code is installed and configured first.
-You can create a new configuration after setting up Claude Code.`, settingsPath)
+To initialize your Claude Code configuration, run:
+  cc-switch init
+
+This will guide you through the initial setup process.`, settingsPath)
 	}
 
 	return nil
