@@ -38,6 +38,36 @@ cc-switch use <name>
 ```
 Switches to the specified configuration.
 
+#### Switch to Previous Configuration
+```bash
+cc-switch use --previous
+# or
+cc-switch use -p
+```
+Switches to the previously used configuration.
+
+#### Empty Mode (Temporary Configuration Removal)
+```bash
+cc-switch use --empty
+# or
+cc-switch use -e
+```
+Temporarily removes all Claude Code configurations (empty mode). This is useful when you want to disable Claude Code temporarily without losing your saved configurations.
+
+#### Restore from Empty Mode
+```bash
+cc-switch use --restore
+```
+Restores from empty mode to the previous configuration that was active before entering empty mode.
+
+#### Interactive Mode
+```bash
+cc-switch use
+# or
+cc-switch use -i
+```
+Enters interactive mode where you can select configurations using arrow keys. In interactive mode, you can also select special options like "Empty Mode" or "Restore Previous".
+
 #### Delete Configuration
 ```bash
 cc-switch delete <name>
@@ -62,6 +92,21 @@ cc-switch new work
 # Switch to work configuration
 cc-switch use work
 
+# Switch to previous configuration
+cc-switch use --previous
+
+# Enter empty mode (disable all configurations temporarily)
+cc-switch use --empty
+
+# Check status in empty mode
+cc-switch current
+
+# Restore from empty mode
+cc-switch use --restore
+
+# Use interactive mode for selection
+cc-switch use
+
 # Show current configuration
 cc-switch current
 
@@ -81,12 +126,14 @@ The tool manages configurations in `~/.claude/profiles/` directory:
 
 ```
 ~/.claude/
-├── settings.json          # Current active configuration
+├── settings.json          # Current active configuration (removed in empty mode)
 ├── profiles/              # Stored configurations
 │   ├── default.json       # Default configuration
 │   ├── work.json          # Work configuration
-│   └── personal.json      # Personal configuration
-└── .current              # Current configuration marker
+│   ├── personal.json      # Personal configuration
+│   └── .empty_backup_settings.json  # Backup when in empty mode
+├── .current              # Current configuration marker
+└── .empty_mode           # Empty mode state file (present in empty mode)
 ```
 
 #### Initialization
@@ -100,6 +147,8 @@ On first run:
 - Configuration files are stored with 600 permissions (owner read/write only)
 - Atomic operations using temporary files ensure configuration integrity
 - Automatic backup of current configuration before switching
+- Empty mode creates secure backup before removing settings.json
+- Rollback mechanisms prevent data loss during operations
 
 #### View Configuration Details
 ```bash
@@ -120,10 +169,45 @@ Opens the configuration in your default text editor for modification.
 | `list` | List all available configurations |
 | `new <name>` | Create a new configuration |
 | `use <name>` | Switch to a configuration |
+| `use -p, --previous` | Switch to previous configuration |
+| `use -e, --empty` | Enter empty mode (disable configurations) |
+| `use --restore` | Restore from empty mode to previous configuration |
+| `use -i, --interactive` | Enter interactive selection mode |
 | `delete <name>` | Delete a configuration |
-| `current` | Show current configuration |
+| `current` | Show current configuration or empty mode status |
 | `view <name>` | View configuration details |
 | `edit <name>` | Edit configuration in text editor |
+
+### Empty Mode Feature
+
+Empty mode is a special state where all Claude Code configurations are temporarily disabled. This is useful in scenarios where:
+
+- You want to temporarily disable Claude Code without losing your saved configurations
+- You need to test Claude Code's default behavior without any custom settings
+- You want to troubleshoot configuration issues by temporarily removing all settings
+
+#### How Empty Mode Works
+
+1. **Entering Empty Mode**: Use `cc-switch use --empty` to enter empty mode
+   - Current `settings.json` is safely backed up to `.empty_backup_settings.json`
+   - The `settings.json` file is removed, disabling Claude Code
+   - A `.empty_mode` file is created to track the state and previous configuration
+
+2. **Empty Mode Status**: All commands work normally and show empty mode indicators
+   - `cc-switch current` shows "Empty mode (no configuration active)"
+   - `cc-switch list` shows "Empty mode active" warning with helpful tips
+
+3. **Exiting Empty Mode**: Multiple ways to restore configurations
+   - `cc-switch use --restore` restores to the previous configuration
+   - `cc-switch use <name>` switches to any specific configuration
+   - Both methods automatically restore the backup and clean up empty mode state
+
+#### Safety Features
+
+- **Atomic Operations**: All operations use temporary files and atomic renames
+- **Automatic Rollback**: Failed operations automatically restore the original state
+- **Backup Validation**: Settings backup is validated before empty mode activation
+- **State Tracking**: Complete state information is preserved for reliable restoration
 
 ### Requirements
 
@@ -230,6 +314,36 @@ cc-switch use <名称>
 ```
 切换到指定的配置。
 
+#### 切换到上一个配置
+```bash
+cc-switch use --previous
+# 或
+cc-switch use -p
+```
+切换到之前使用的配置。
+
+#### 空配置模式（临时移除配置）
+```bash
+cc-switch use --empty
+# 或
+cc-switch use -e
+```
+临时移除所有 Claude Code 配置（空配置模式）。这在您想要暂时禁用 Claude Code 而不丢失已保存配置时很有用。
+
+#### 从空配置模式恢复
+```bash
+cc-switch use --restore
+```
+从空配置模式恢复到进入空配置模式之前活动的配置。
+
+#### 交互模式
+```bash
+cc-switch use
+# 或
+cc-switch use -i
+```
+进入交互模式，您可以使用箭头键选择配置。在交互模式中，您还可以选择特殊选项，如"空配置模式"或"恢复上一个"。
+
 #### 删除配置
 ```bash
 cc-switch delete <名称>
@@ -254,6 +368,21 @@ cc-switch new work
 # 切换到工作配置
 cc-switch use work
 
+# 切换到上一个配置
+cc-switch use --previous
+
+# 进入空配置模式（临时禁用所有配置）
+cc-switch use --empty
+
+# 在空配置模式下检查状态
+cc-switch current
+
+# 从空配置模式恢复
+cc-switch use --restore
+
+# 使用交互模式进行选择
+cc-switch use
+
 # 显示当前配置
 cc-switch current
 
@@ -273,12 +402,14 @@ cc-switch delete old-config
 
 ```
 ~/.claude/
-├── settings.json          # 当前活动配置
+├── settings.json          # 当前活动配置（空配置模式下被移除）
 ├── profiles/              # 存储的配置
 │   ├── default.json       # 默认配置
 │   ├── work.json          # 工作配置
-│   └── personal.json      # 个人配置
-└── .current              # 当前配置标记文件
+│   ├── personal.json      # 个人配置
+│   └── .empty_backup_settings.json  # 空配置模式下的备份
+├── .current              # 当前配置标记文件
+└── .empty_mode           # 空配置模式状态文件（空配置模式下存在）
 ```
 
 #### 初始化
@@ -292,6 +423,8 @@ cc-switch delete old-config
 - 配置文件使用 600 权限存储（仅所有者可读写）
 - 使用临时文件的原子操作确保配置完整性
 - 切换前自动备份当前配置
+- 空配置模式在移除 settings.json 前创建安全备份
+- 回滚机制防止操作过程中的数据丢失
 
 #### 查看配置详情
 ```bash
@@ -312,10 +445,45 @@ cc-switch edit <名称>
 | `list` | 列出所有可用配置 |
 | `new <名称>` | 创建新配置 |
 | `use <名称>` | 切换到配置 |
+| `use -p, --previous` | 切换到上一个配置 |
+| `use -e, --empty` | 进入空配置模式（禁用配置） |
+| `use --restore` | 从空配置模式恢复到上一个配置 |
+| `use -i, --interactive` | 进入交互选择模式 |
 | `delete <名称>` | 删除配置 |
-| `current` | 显示当前配置 |
+| `current` | 显示当前配置或空配置模式状态 |
 | `view <名称>` | 查看配置详情 |
 | `edit <名称>` | 在文本编辑器中编辑配置 |
+
+### 空配置模式功能
+
+空配置模式是一种特殊状态，可以临时禁用所有 Claude Code 配置。这在以下场景中很有用：
+
+- 您想要暂时禁用 Claude Code 而不丢失已保存的配置
+- 您需要测试 Claude Code 的默认行为而不使用任何自定义设置
+- 您想要通过临时移除所有设置来排查配置问题
+
+#### 空配置模式的工作原理
+
+1. **进入空配置模式**：使用 `cc-switch use --empty` 进入空配置模式
+   - 当前的 `settings.json` 被安全备份到 `.empty_backup_settings.json`
+   - `settings.json` 文件被移除，禁用 Claude Code
+   - 创建 `.empty_mode` 文件来跟踪状态和之前的配置
+
+2. **空配置模式状态**：所有命令正常工作并显示空配置模式指示器
+   - `cc-switch current` 显示 "空配置模式（无配置激活）"
+   - `cc-switch list` 显示 "空配置模式激活" 警告和有用提示
+
+3. **退出空配置模式**：多种方式恢复配置
+   - `cc-switch use --restore` 恢复到之前的配置
+   - `cc-switch use <名称>` 切换到任何指定配置
+   - 两种方法都会自动恢复备份并清理空配置模式状态
+
+#### 安全特性
+
+- **原子操作**：所有操作使用临时文件和原子重命名
+- **自动回滚**：失败的操作自动恢复原始状态
+- **备份验证**：在激活空配置模式前验证设置备份
+- **状态跟踪**：保存完整状态信息以确保可靠恢复
 
 ### 系统要求
 
