@@ -81,6 +81,49 @@ func (ui *cliUI) GetInput(prompt string, defaultValue string) (string, error) {
 	return input, nil
 }
 
+// Init-specific operations
+
+// GetInitInput prompts for initialization input with special handling for empty values
+func (ui *cliUI) GetInitInput(fieldName, description string) (string, error) {
+	fmt.Printf("? %s: ", description)
+	
+	var input string
+	fmt.Scanln(&input)
+	
+	// For init, empty values are allowed
+	return strings.TrimSpace(input), nil
+}
+
+// ShowInitWelcome displays welcome message for initialization
+func (ui *cliUI) ShowInitWelcome() {
+	color.Cyan("🚀 Welcome to Claude Code configuration setup!")
+	fmt.Println()
+	color.Yellow("This will create your initial Claude Code configuration.")
+	fmt.Println("You can leave fields empty if you don't have the information yet.")
+	fmt.Println()
+}
+
+// ShowInitSuccess displays success message after initialization
+func (ui *cliUI) ShowInitSuccess() {
+	fmt.Println()
+	color.Green("✓ Configuration created successfully")
+	color.Green("✓ Default profile 'default' created")
+	color.Green("✓ cc-switch directory structure initialized")
+	fmt.Println()
+	color.Cyan("🎉 Your Claude Code configuration is ready!")
+	color.White("You can now use 'cc-switch' commands to manage your configurations.")
+}
+
+// ShowAlreadyInitialized displays message when configuration already exists
+func (ui *cliUI) ShowAlreadyInitialized() {
+	color.Yellow("⚠ Claude Code configuration already exists")
+	fmt.Println()
+	fmt.Println("If you want to reconfigure, you can:")
+	color.Cyan("  • Use 'cc-switch edit default' to modify existing configuration")
+	color.Cyan("  • Use 'cc-switch new <name>' to create additional configurations")
+	color.Cyan("  • Manually backup and remove settings.json to reinitialize")
+}
+
 // ShowError displays error messages
 func (ui *cliUI) ShowError(err error) {
 	color.Red("Error: %v", err)

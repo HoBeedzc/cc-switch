@@ -36,6 +36,21 @@ type ConfigHistory struct {
 
 // NewConfigManager 创建新的配置管理器
 func NewConfigManager() (*ConfigManager, error) {
+	cm, err := NewConfigManagerNoInit()
+	if err != nil {
+		return nil, err
+	}
+
+	// 初始化检查
+	if err := cm.Initialize(); err != nil {
+		return nil, fmt.Errorf("failed to initialize config manager: %w", err)
+	}
+
+	return cm, nil
+}
+
+// NewConfigManagerNoInit 创建配置管理器但不执行初始化（用于init命令）
+func NewConfigManagerNoInit() (*ConfigManager, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
@@ -55,11 +70,6 @@ func NewConfigManager() (*ConfigManager, error) {
 		currentFile:   currentFile,
 		settingsFile:  settingsFile,
 		historyFile:   historyFile,
-	}
-
-	// 初始化检查
-	if err := cm.Initialize(); err != nil {
-		return nil, fmt.Errorf("failed to initialize config manager: %w", err)
 	}
 
 	return cm, nil
@@ -806,6 +816,78 @@ func (cm *ConfigManager) validateTemplateContent(content map[string]interface{})
 	// 验证是否可以序列化
 	if _, err := json.Marshal(content); err != nil {
 		return fmt.Errorf("content cannot be serialized to JSON: %w", err)
+	}
+
+	return nil
+}
+
+// Init Command Support Methods
+
+// IsInitialized 检查Claude配置是否已初始化
+func (cm *ConfigManager) IsInitialized() bool {
+	_, err := os.Stat(cm.settingsFile)
+	return err == nil
+}
+
+// InitializeFromScratch 从零开始初始化Claude配置
+func (cm *ConfigManager) InitializeFromScratch(authToken, baseURL string) error {
+	// 检查是否已初始化
+	if cm.IsInitialized() {
+		return fmt.Errorf("configuration already exists at %s", cm.settingsFile)
+	}
+
+	// 创建初始配置内容
+	initialConfig := map[string]interface{}{
+		"env": map[string]interface{}{
+			"ANTHROPIC_AUTH_TOKEN": authToken,
+		},
+		"permissions": map[string]interface{}{
+			"allow": []interface{}{},
+			"deny":  []interface{}{},
+		},
+	}
+
+	// 如果提供了baseURL，添加到配置中
+	if baseURL != "" {
+		initialConfig["env"].(map[string]interface{})["ANTHROPIC_BASE_URL"] = baseURL
+	}
+
+	// 确保目录存在
+	if err := os.MkdirAll(cm.claudeDir, 0755); err != nil {
+		return fmt.Errorf("failed to create claude directory: %w", err)
+	}
+
+	// 创建settings.json
+	if err := cm.writeConfigFile(cm.settingsFile, initialConfig); err != nil {
+		return fmt.Errorf("failed to create settings file: %w", err)
+	}
+
+	// 初始化cc-switch结构
+	if err := cm.Initialize(); err != nil {
+		return fmt.Errorf("failed to initialize cc-switch: %w", err)
+	}
+
+	return nil
+}
+
+// writeConfigFile 写入配置文件的辅助方法
+func (cm *ConfigManager) writeConfigFile(filePath string, content map[string]interface{}) error {
+	// 序列化配置
+	jsonData, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize JSON: %w", err)
+	}
+
+	// 原子性写入
+	tempFile := filePath + ".tmp"
+	if err := os.WriteFile(tempFile, jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	// 原子性重命名
+	if err := os.Rename(tempFile, filePath); err != nil {
+		os.Remove(tempFile) // 清理临时文件
+		return fmt.Errorf("failed to create configuration file: %w", err)
 	}
 
 	return nil

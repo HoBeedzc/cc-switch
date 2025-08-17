@@ -28,6 +28,12 @@ type UIProvider interface {
 	// Input operations
 	GetInput(prompt string, defaultValue string) (string, error)
 
+	// Init-specific operations
+	GetInitInput(fieldName, description string) (string, error)
+	ShowInitWelcome()
+	ShowInitSuccess()
+	ShowAlreadyInitialized()
+
 	// Display operations
 	ShowError(err error)
 	ShowSuccess(message string, args ...interface{})

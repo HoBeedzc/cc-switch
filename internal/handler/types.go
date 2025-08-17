@@ -24,6 +24,10 @@ type ConfigHandler interface {
 	DeleteTemplate(name string) error
 	ValidateTemplateExists(name string) error
 
+	// Init operations
+	InitializeConfig(authToken, baseURL string) error
+	IsConfigInitialized() bool
+
 	// Helper operations
 	ValidateConfigExists(name string) error
 	GetCurrentConfig() (string, error)
