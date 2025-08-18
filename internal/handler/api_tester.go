@@ -406,7 +406,8 @@ func (t *APITester) testChatEndpoint(credentials *APICredentials) EndpointTest {
 	req.Header.Set("Authorization", "Bearer "+credentials.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-version", credentials.Version)
-	req.Header.Set("User-Agent", "cc-switch-test/1.0")
+	req.Header.Set("User-Agent", "claude-cli/1.0.72 (external, cli)")
+	req.Header.Set("X-App", "cli")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
