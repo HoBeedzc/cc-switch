@@ -32,6 +32,7 @@ type ConfigHandler interface {
 	// Helper operations
 	ValidateConfigExists(name string) error
 	GetCurrentConfig() (string, error)
+	GetCurrentConfigurationForOperation() (string, error)
 	IsCurrentConfig(name string) bool
 	GetPreviousConfig() (string, error)
 
