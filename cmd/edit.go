@@ -25,12 +25,14 @@ var editCmd = &cobra.Command{
 Configuration Mode:
 - Interactive: cc-switch edit (no arguments) or cc-switch edit -i
 - CLI: cc-switch edit <name>
+- Current: cc-switch edit --current or cc-switch edit -c
 
 Template Mode:
 - Edit template: cc-switch edit -t <template-name> or cc-switch edit --template <template-name>
 - List templates: cc-switch edit -t --list or cc-switch edit --template --list
 
 The interactive mode allows you to browse and select configurations with arrow keys.
+The --current flag edits the currently active configuration.
 
 The editor is determined by priority:
 1. --nano flag uses nano editor
@@ -55,6 +57,7 @@ Changes are validated for JSON syntax before saving.`,
 		listTemplates, _ := cmd.Flags().GetBool("list")
 		field, _ := cmd.Flags().GetString("field")
 		nano, _ := cmd.Flags().GetBool("nano")
+		current, _ := cmd.Flags().GetBool("current")
 
 		// Template mode handling
 		if listTemplates {
@@ -71,44 +74,50 @@ Changes are validated for JSON syntax before saving.`,
 
 		// Create UI provider based on mode
 		var uiProvider ui.UIProvider
-		if ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
+		if ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive && !current {
 			uiProvider = ui.NewInteractiveUI()
 		} else {
 			uiProvider = ui.NewCLIUI()
 		}
 
 		// Execute edit operation
-		return executeEdit(configHandler, uiProvider, args, field, nano)
+		return executeEdit(configHandler, uiProvider, args, field, nano, current)
 	},
 }
 
 // executeEdit handles the edit operation with the given dependencies
-func executeEdit(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, field string, useNano bool) error {
-	// Get all configurations
-	profiles, err := configHandler.ListConfigs()
-	if err != nil {
-		return fmt.Errorf("failed to list profiles: %w", err)
-	}
-
-	if len(profiles) == 0 {
-		uiProvider.ShowWarning("No configurations found.")
-		fmt.Println("Use 'cc-switch new <name>' to create your first configuration.")
-		return nil
-	}
-
+func executeEdit(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, field string, useNano bool, useCurrent bool) error {
 	var targetName string
 
-	// Determine execution mode
-	if len(args) == 0 {
-		// Interactive mode
+	// Priority: explicit profile name > --current flag > interactive mode
+	if len(args) > 0 {
+		// Has explicit profile name, ignore --current flag
+		targetName = args[0]
+	} else if useCurrent {
+		// Use --current flag
+		currentProfile, err := configHandler.GetCurrentConfigurationForOperation()
+		if err != nil {
+			return handleCurrentConfigError(err, uiProvider)
+		}
+		targetName = currentProfile
+	} else {
+		// Enter interactive mode
+		profiles, err := configHandler.ListConfigs()
+		if err != nil {
+			return fmt.Errorf("failed to list profiles: %w", err)
+		}
+
+		if len(profiles) == 0 {
+			uiProvider.ShowWarning("No configurations found.")
+			fmt.Println("Use 'cc-switch new <name>' to create your first configuration.")
+			return nil
+		}
+
 		selected, err := uiProvider.SelectConfiguration(profiles, "edit")
 		if err != nil {
 			return fmt.Errorf("selection cancelled: %w", err)
 		}
 		targetName = selected.Name
-	} else {
-		// CLI mode
-		targetName = args[0]
 	}
 
 	// Execute edit
@@ -199,4 +208,5 @@ func init() {
 	editCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
 	editCmd.Flags().StringVarP(&templateName, "template", "t", "", "Edit template instead of configuration")
 	editCmd.Flags().BoolVar(&listTemplates, "list", false, "List available templates (use with --template)")
+	editCmd.Flags().BoolP("current", "c", false, "Edit current active configuration")
 }

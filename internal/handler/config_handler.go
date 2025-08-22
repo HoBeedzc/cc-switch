@@ -111,6 +111,11 @@ func (h *configHandler) GetCurrentConfig() (string, error) {
 	return h.configManager.GetCurrentProfile()
 }
 
+// GetCurrentConfigurationForOperation 获取当前配置用于操作（委托给 ConfigManager）
+func (h *configHandler) GetCurrentConfigurationForOperation() (string, error) {
+	return h.configManager.GetCurrentConfigurationForOperation()
+}
+
 // IsCurrentConfig checks if the given configuration is current
 func (h *configHandler) IsCurrentConfig(name string) bool {
 	current, err := h.GetCurrentConfig()

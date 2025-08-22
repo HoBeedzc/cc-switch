@@ -35,6 +35,37 @@ type ConfigHistory struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// EmptyModeError 空配置模式错误
+type EmptyModeError struct {
+	Message     string
+	Suggestions []string
+}
+
+func (e *EmptyModeError) Error() string {
+	return e.Message
+}
+
+// NoCurrentProfileError 无当前配置错误
+type NoCurrentProfileError struct {
+	Message     string
+	Suggestions []string
+}
+
+func (e *NoCurrentProfileError) Error() string {
+	return e.Message
+}
+
+// ProfileMissingError 配置文件缺失错误
+type ProfileMissingError struct {
+	ProfileName string
+	Message     string
+	Suggestions []string
+}
+
+func (e *ProfileMissingError) Error() string {
+	return e.Message
+}
+
 // EmptyModeInfo 空配置模式信息
 type EmptyModeInfo struct {
 	Enabled         bool      `json:"enabled"`
@@ -273,6 +304,48 @@ func (cm *ConfigManager) DeleteProfile(name string) error {
 // GetCurrentProfile 获取当前配置名
 func (cm *ConfigManager) GetCurrentProfile() (string, error) {
 	return cm.getCurrentProfile()
+}
+
+// GetCurrentConfigurationForOperation 获取当前配置用于操作
+// 返回配置名称，或在特殊情况下返回错误和用户友好的消息
+func (cm *ConfigManager) GetCurrentConfigurationForOperation() (string, error) {
+	// 检查是否处于 empty mode
+	if cm.IsEmptyMode() {
+		return "", &EmptyModeError{
+			Message: "Currently in empty configuration mode",
+			Suggestions: []string{
+				"Use 'cc-switch use <profile>' to activate a configuration",
+				"Or use 'cc-switch restore' to return to previous configuration",
+			},
+		}
+	}
+
+	// 获取当前配置名
+	currentProfile, err := cm.getCurrentProfile()
+	if err != nil {
+		return "", &NoCurrentProfileError{
+			Message: "No current configuration set",
+			Suggestions: []string{
+				"Run 'cc-switch list' to see available configurations",
+				"Run 'cc-switch use <profile>' to activate a configuration",
+			},
+		}
+	}
+
+	// 验证配置文件是否存在
+	if !cm.ProfileExists(currentProfile) {
+		return "", &ProfileMissingError{
+			ProfileName: currentProfile,
+			Message:     fmt.Sprintf("Current profile '%s' file not found", currentProfile),
+			Suggestions: []string{
+				"Run 'cc-switch list' to see available configurations",
+				"Run 'cc-switch use <profile>' to switch to an existing configuration",
+				fmt.Sprintf("Run 'cc-switch new %s' to recreate the missing configuration", currentProfile),
+			},
+		}
+	}
+
+	return currentProfile, nil
 }
 
 // 私有方法
