@@ -45,6 +45,27 @@ func (h *configHandler) DeleteConfig(name string, force bool) error {
 	return h.configManager.DeleteProfile(name)
 }
 
+// CreateConfig creates a new configuration from a template
+func (h *configHandler) CreateConfig(name string, templateName string) error {
+	// Validate configuration doesn't already exist
+	if h.configManager.ProfileExists(name) {
+		return fmt.Errorf("configuration '%s' already exists", name)
+	}
+
+	// Use default template if not specified
+	if templateName == "" {
+		templateName = "default"
+	}
+
+	// Check if template exists, fallback to default if not
+	if !h.configManager.TemplateExists(templateName) && templateName != "default" {
+		templateName = "default"
+	}
+
+	// Create the configuration from template
+	return h.configManager.CreateProfileFromTemplate(name, templateName)
+}
+
 // UseConfig switches to the specified configuration
 func (h *configHandler) UseConfig(name string) error {
 	// Validate configuration exists
