@@ -20,10 +20,10 @@ import (
 )
 
 var (
-	webPort   int
-	webHost   string
-	webOpen   bool
-	webQuiet  bool
+	webPort  int
+	webHost  string
+	webOpen  bool
+	webQuiet bool
 )
 
 var webCmd = &cobra.Command{
@@ -151,7 +151,7 @@ func openBrowser(url string) {
 		Path: cmd,
 		Args: append([]string{cmd}, args...),
 	}
-	
+
 	if err := exec.Start(); err != nil {
 		fmt.Printf("💻 Please open your browser and go to: %s\n", url)
 	}

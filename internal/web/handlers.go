@@ -40,7 +40,7 @@ func (api *APIHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 	// Extract profile name from path
 	path := strings.TrimPrefix(r.URL.Path, "/api/profiles/")
 	profileName := strings.Split(path, "/")[0]
-	
+
 	if profileName == "" {
 		api.sendError(w, "Profile name is required", http.StatusBadRequest)
 		return
@@ -72,7 +72,7 @@ func (api *APIHandler) HandleCurrent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isEmptyMode := api.handler.IsEmptyMode()
-	
+
 	response := map[string]interface{}{
 		"current":    currentProfile,
 		"empty_mode": isEmptyMode,
@@ -137,9 +137,9 @@ func (api *APIHandler) HandleTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request struct {
-		Profile string   `json:"profile"`
-		Quick   bool     `json:"quick"`
-		Timeout int      `json:"timeout"`
+		Profile string `json:"profile"`
+		Quick   bool   `json:"quick"`
+		Timeout int    `json:"timeout"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -199,7 +199,7 @@ func (api *APIHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isInitialized := api.handler.IsConfigInitialized()
-	
+
 	health := map[string]interface{}{
 		"status":      "ok",
 		"initialized": isInitialized,

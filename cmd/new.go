@@ -23,22 +23,10 @@ You can specify a template to use when creating the configuration:
 If the specified template does not exist, the default template will be used.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) < 1 {
-			return fmt.Errorf(`Missing required argument: configuration name
-
-Usage: cc-switch new <name>
-
-Example: cc-switch new production
-
-Use 'cc-switch new --help' for more information.`)
+			return fmt.Errorf("missing required argument: configuration name")
 		}
 		if len(args) > 1 {
-			return fmt.Errorf(`Too many arguments provided
-
-Usage: cc-switch new <name>
-
-Example: cc-switch new production
-
-Use 'cc-switch new --help' for more information.`)
+			return fmt.Errorf("too many arguments provided")
 		}
 		return nil
 	},
