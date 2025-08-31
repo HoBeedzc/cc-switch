@@ -10,7 +10,6 @@ import (
 	"cc-switch/internal/handler"
 	"cc-switch/internal/ui"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -204,128 +203,6 @@ func runTestAll(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, o
 	}
 
 	return displayAllResultsWithUI(uiProvider, results, options)
-}
-
-func displaySingleResult(result *handler.APITestResult, options handler.TestOptions) error {
-	if options.JSONOutput {
-		return displayJSONResult(result)
-	}
-
-	// Display header
-	fmt.Println()
-
-	// Handle error case
-	if result.Error != "" {
-		color.Red("❌ %s", result.Error)
-		return nil
-	}
-
-	// Display test results
-	for _, test := range result.Tests {
-		symbol := getStatusSymbol(test.Status)
-		message := fmt.Sprintf("%s %s", symbol, formatTestDescription(test))
-
-		if test.Status == "success" {
-			color.Green(message)
-		} else {
-			color.Red(message)
-		}
-
-		// Show details in verbose mode
-		if options.Verbose {
-			fmt.Println(formatVerboseTestDetails(test))
-		}
-	}
-
-	// Display summary
-	fmt.Println()
-	if result.IsConnectable {
-		color.Green("✅ Result: Configuration is functional")
-		fmt.Printf("   Total response time: %s\n", formatDuration(result.ResponseTime))
-	} else {
-		color.Red("❌ Result: Configuration has connectivity issues")
-	}
-
-	return nil
-}
-
-func displayAllResults(results []handler.APITestResult, options handler.TestOptions) error {
-	if options.JSONOutput {
-		return displayJSONResults(results)
-	}
-
-	validCount := 0
-	totalCount := len(results)
-
-	for _, result := range results {
-		symbol := "❌"
-		status := "Invalid"
-		details := ""
-
-		if result.Error != "" {
-			details = fmt.Sprintf(" (%s)", result.Error)
-		} else if result.IsConnectable {
-			symbol = "✅"
-			status = "Valid"
-			validCount++
-			if !options.Quick {
-				successCount := 0
-				for _, test := range result.Tests {
-					if test.Status == "success" {
-						successCount++
-					}
-				}
-				if successCount < len(result.Tests) {
-					symbol = "⚠️"
-					status = fmt.Sprintf("Valid with warnings (%d/%d tests passed)", successCount, len(result.Tests))
-				}
-			}
-		} else {
-			failedTests := 0
-			for _, test := range result.Tests {
-				if test.Status == "failed" {
-					failedTests++
-				}
-			}
-			if failedTests > 0 {
-				details = fmt.Sprintf(" (%d errors)", failedTests)
-			}
-		}
-
-		message := fmt.Sprintf("%-20s %s %s%s", result.ProfileName, symbol, status, details)
-
-		if result.IsConnectable {
-			color.Green(message)
-		} else {
-			color.Red(message)
-		}
-
-		// Show individual test results in verbose mode
-		if options.Verbose && len(result.Tests) > 0 {
-			for _, test := range result.Tests {
-				symbol := getStatusSymbol(test.Status)
-				testMsg := fmt.Sprintf("  └─ %s %s", symbol, formatTestDescription(test))
-				if test.Status == "success" {
-					color.Green(testMsg)
-				} else {
-					color.Red(testMsg)
-				}
-			}
-		}
-	}
-
-	// Display summary
-	fmt.Println()
-	summaryMsg := fmt.Sprintf("Summary: %d/%d configurations functional", validCount, totalCount)
-	if validCount == totalCount {
-		color.Green("✅ %s", summaryMsg)
-	} else if validCount > 0 {
-		color.Yellow("⚠️  %s", summaryMsg)
-	} else {
-		color.Red("❌ %s", summaryMsg)
-	}
-
-	return nil
 }
 
 func displayJSONResult(result *handler.APITestResult) error {

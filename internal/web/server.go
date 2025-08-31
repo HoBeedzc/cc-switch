@@ -15,10 +15,10 @@ var assets embed.FS
 
 // Server represents the web server
 type Server struct {
-	handler    handler.ConfigHandler
-	server     *http.Server
-	host       string
-	port       int
+	handler handler.ConfigHandler
+	server  *http.Server
+	host    string
+	port    int
 }
 
 // NewServer creates a new web server instance
@@ -47,7 +47,7 @@ func (s *Server) Start() error {
 	// Static file server
 	staticHandler := http.FileServer(http.FS(assets))
 	mux.Handle("/assets/", staticHandler)
-	
+
 	// Main page
 	mux.HandleFunc("/", s.handleIndex)
 
@@ -159,12 +159,12 @@ func corsMiddleware(next http.Handler) http.Handler {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// Wrap the response writer to capture status code
 		wrapper := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		
+
 		next.ServeHTTP(wrapper, r)
-		
+
 		duration := time.Since(start)
 		fmt.Printf("%s %s %d %v\n", r.Method, r.URL.Path, wrapper.statusCode, duration)
 	})

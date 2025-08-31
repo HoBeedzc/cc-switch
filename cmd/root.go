@@ -66,22 +66,12 @@ func checkClaudeConfig() error {
 	// Check for profiles directory (indicates cc-switch is initialized)
 	profilesDir := filepath.Join(claudeDir, "profiles")
 	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
-		return fmt.Errorf(`Claude configuration not found at %s
-
-To initialize your Claude Code configuration, run:
-  cc-switch init
-
-This will guide you through the initial setup process.`, settingsPath)
+		return fmt.Errorf("claude configuration not found at %s", settingsPath)
 	}
 
 	// If not in empty mode, settings.json should exist
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-		return fmt.Errorf(`Claude configuration not found at %s
-
-To initialize your Claude Code configuration, run:
-  cc-switch init
-
-This will guide you through the initial setup process.`, settingsPath)
+		return fmt.Errorf("claude configuration not found at %s", settingsPath)
 	}
 
 	return nil

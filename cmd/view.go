@@ -10,10 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	rawOutput   bool
-	currentFlag bool
-)
+var rawOutput bool
 
 var viewCmd = &cobra.Command{
 	Use:   "view [name]",
