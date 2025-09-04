@@ -10,6 +10,8 @@ type ConfigHandler interface {
 	// Configuration management operations
 	ListConfigs() ([]config.Profile, error)
 	DeleteConfig(name string, force bool) error
+	DeleteAllConfigs() error
+	DeleteCurrentConfig() error
 	UseConfig(name string) error
 	ViewConfig(name string, raw bool) (*ConfigView, error)
 	EditConfig(name string, field string, useNano bool) error
