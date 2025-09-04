@@ -45,6 +45,51 @@ func (h *configHandler) DeleteConfig(name string, force bool) error {
 	return h.configManager.DeleteProfile(name)
 }
 
+// DeleteAllConfigs deletes all configurations and enters empty mode
+func (h *configHandler) DeleteAllConfigs() error {
+	// Get all configurations
+	profiles, err := h.ListConfigs()
+	if err != nil {
+		return fmt.Errorf("failed to list profiles: %w", err)
+	}
+
+	if len(profiles) == 0 {
+		return fmt.Errorf("no configurations found to delete")
+	}
+
+	// Delete all profiles
+	for _, profile := range profiles {
+		if err := h.configManager.DeleteProfile(profile.Name); err != nil {
+			return fmt.Errorf("failed to delete configuration '%s': %w", profile.Name, err)
+		}
+	}
+
+	// Enter empty mode
+	return h.configManager.EnableEmptyMode()
+}
+
+// DeleteCurrentConfig deletes the current configuration and enters empty mode
+func (h *configHandler) DeleteCurrentConfig() error {
+	// Check if we're already in empty mode
+	if h.configManager.IsEmptyMode() {
+		return fmt.Errorf("already in empty mode - no current configuration to delete")
+	}
+
+	// Get current configuration
+	currentName, err := h.GetCurrentConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get current configuration: %w", err)
+	}
+
+	// Delete the current configuration
+	if err := h.configManager.DeleteProfile(currentName); err != nil {
+		return fmt.Errorf("failed to delete current configuration '%s': %w", currentName, err)
+	}
+
+	// Enter empty mode
+	return h.configManager.EnableEmptyMode()
+}
+
 // CreateConfig creates a new configuration from a template
 func (h *configHandler) CreateConfig(name string, templateName string) error {
 	// Validate configuration doesn't already exist
