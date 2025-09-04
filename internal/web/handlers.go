@@ -254,43 +254,67 @@ func (api *APIHandler) createProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use template if provided, otherwise use default
-	template := request.Template
-	if template == "" {
-		template = "default"
-	}
+	var err error
+	var message string
 
-	// Check if template exists
-	templates, err := api.handler.ListTemplates()
-	if err != nil {
-		api.sendError(w, "Failed to list templates", http.StatusInternalServerError)
-		return
-	}
-
-	templateExists := false
-	for _, t := range templates {
-		if t == template {
-			templateExists = true
-			break
+	// Check if custom content is provided
+	if request.Content.Env != nil || len(request.Content.Permissions.Allow) > 0 || len(request.Content.Permissions.Deny) > 0 || request.Content.StatusLine != nil {
+		// Create with custom content
+		content := map[string]interface{}{
+			"env": request.Content.Env,
+			"permissions": map[string]interface{}{
+				"allow": request.Content.Permissions.Allow,
+				"deny":  request.Content.Permissions.Deny,
+			},
+			"statusLine": request.Content.StatusLine,
 		}
-	}
 
-	if !templateExists && template != "default" {
-		// Fallback to default template
-		template = "default"
-	}
+		err = api.handler.CreateConfigWithContent(request.Name, content)
+		if err != nil {
+			api.sendError(w, fmt.Sprintf("Failed to create profile: %v", err), http.StatusInternalServerError)
+			return
+		}
 
-	// Create the configuration using the handler
-	err = api.handler.CreateConfig(request.Name, template)
-	if err != nil {
-		api.sendError(w, fmt.Sprintf("Failed to create profile: %v", err), http.StatusInternalServerError)
-		return
+		message = fmt.Sprintf("Profile '%s' created successfully with custom content", request.Name)
+	} else {
+		// Create from template
+		template := request.Template
+		if template == "" {
+			template = "default"
+		}
+
+		// Check if template exists
+		templates, err := api.handler.ListTemplates()
+		if err != nil {
+			api.sendError(w, "Failed to list templates", http.StatusInternalServerError)
+			return
+		}
+
+		templateExists := false
+		for _, t := range templates {
+			if t == template {
+				templateExists = true
+				break
+			}
+		}
+
+		if !templateExists && template != "default" {
+			// Fallback to default template
+			template = "default"
+		}
+
+		err = api.handler.CreateConfig(request.Name, template)
+		if err != nil {
+			api.sendError(w, fmt.Sprintf("Failed to create profile: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		message = fmt.Sprintf("Profile '%s' created successfully from template '%s'", request.Name, template)
 	}
 
 	api.sendSuccess(w, map[string]interface{}{
-		"message":  fmt.Sprintf("Profile '%s' created successfully from template '%s'", request.Name, template),
-		"name":     request.Name,
-		"template": template,
+		"message": message,
+		"name":    request.Name,
 	})
 }
 

@@ -14,6 +14,7 @@ type ConfigHandler interface {
 	ViewConfig(name string, raw bool) (*ConfigView, error)
 	EditConfig(name string, field string, useNano bool) error
 	CreateConfig(name string, templateName string) error
+	CreateConfigWithContent(name string, content map[string]interface{}) error
 
 	// New configuration operations
 	MoveConfig(oldName, newName string) error
