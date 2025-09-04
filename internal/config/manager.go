@@ -230,6 +230,40 @@ func (cm *ConfigManager) CreateProfileFromTemplate(name, templateName string) er
 	return nil
 }
 
+// CreateProfileWithContent 使用自定义内容创建新配置
+func (cm *ConfigManager) CreateProfileWithContent(name string, content map[string]interface{}) error {
+	// 验证配置名称
+	if err := cm.validateProfileName(name); err != nil {
+		return err
+	}
+
+	// 检查配置是否已存在
+	profilePath := filepath.Join(cm.profilesDir, name+".json")
+	if _, err := os.Stat(profilePath); err == nil {
+		return fmt.Errorf("profile '%s' already exists", name)
+	}
+
+	// 将内容写入文件
+	data, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config content: %w", err)
+	}
+
+	// 原子性写入：使用临时文件
+	tempFile := profilePath + ".tmp"
+	if err := os.WriteFile(tempFile, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	// 原子性重命名
+	if err := os.Rename(tempFile, profilePath); err != nil {
+		os.Remove(tempFile) // 清理临时文件
+		return fmt.Errorf("failed to finalize config file: %w", err)
+	}
+
+	return nil
+}
+
 // UseProfile 切换到指定配置
 func (cm *ConfigManager) UseProfile(name string) error {
 	profilePath := filepath.Join(cm.profilesDir, name+".json")

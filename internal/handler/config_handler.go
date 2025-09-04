@@ -66,6 +66,17 @@ func (h *configHandler) CreateConfig(name string, templateName string) error {
 	return h.configManager.CreateProfileFromTemplate(name, templateName)
 }
 
+// CreateConfigWithContent creates a new configuration with custom content
+func (h *configHandler) CreateConfigWithContent(name string, content map[string]interface{}) error {
+	// Validate configuration doesn't already exist
+	if h.configManager.ProfileExists(name) {
+		return fmt.Errorf("configuration '%s' already exists", name)
+	}
+
+	// Create the configuration with custom content
+	return h.configManager.CreateProfileWithContent(name, content)
+}
+
 // UseConfig switches to the specified configuration
 func (h *configHandler) UseConfig(name string) error {
 	// Validate configuration exists
