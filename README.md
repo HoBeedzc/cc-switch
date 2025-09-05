@@ -26,6 +26,12 @@ cc-switch list
 ```
 Shows all available configurations with the current one highlighted.
 
+#### Initialize Configuration (First Time Setup)
+```bash
+cc-switch init
+```
+Initialize Claude Code configuration with interactive setup. Prompts for API token and base URL.
+
 #### Create New Configuration
 ```bash
 cc-switch new <name>
@@ -74,6 +80,66 @@ cc-switch delete <name>
 ```
 Deletes the specified configuration (cannot delete currently active one).
 
+#### Copy Configuration
+```bash
+cc-switch cp <source> <destination>
+```
+Creates a copy of an existing configuration with a new name. Original configuration remains unchanged.
+
+#### Move (Rename) Configuration
+```bash
+cc-switch mv <old-name> <new-name>
+```
+Renames an existing configuration. If currently active, the marker will be updated automatically.
+
+#### Export Configurations
+```bash
+# Export specific profile
+cc-switch export <profile-name> -o backup.ccx
+
+# Export all profiles
+cc-switch export --all -o all-configs.ccx
+
+# Export current profile
+cc-switch export --current -o current.ccx
+```
+Export configurations to encrypted backup files (.ccx format). Supports password protection.
+
+#### Import Configurations
+```bash
+# Import from backup file
+cc-switch import backup.ccx
+
+# Import with overwrite
+cc-switch import backup.ccx --overwrite
+
+# Import with prefix
+cc-switch import backup.ccx --prefix team-
+```
+Import configurations from encrypted backup files. Supports conflict resolution and dry-run mode.
+
+#### Test Configuration Connectivity
+```bash
+# Test specific configuration
+cc-switch test <profile-name>
+
+# Test current configuration
+cc-switch test --current
+
+# Test all configurations
+cc-switch test --all
+
+# Quick connectivity test
+cc-switch test --quick
+```
+Test Claude Code API connectivity and authentication for configurations.
+
+#### Web Interface
+```bash
+cc-switch web
+```
+Launch a browser-based interface for managing configurations at http://localhost:13501.
+
 #### Show Current Configuration
 ```bash
 cc-switch current
@@ -83,6 +149,9 @@ Displays the name of the currently active configuration.
 ### Examples
 
 ```bash
+# Initialize configuration (first time setup)
+cc-switch init
+
 # List all configurations
 cc-switch list
 
@@ -94,6 +163,24 @@ cc-switch use work
 
 # Switch to previous configuration
 cc-switch use --previous
+
+# Copy configuration for backup
+cc-switch cp work work-backup
+
+# Rename configuration
+cc-switch mv work-backup work-v2
+
+# Test current configuration
+cc-switch test --current
+
+# Export all configurations
+cc-switch export --all -o backup.ccx
+
+# Import configurations
+cc-switch import backup.ccx
+
+# Launch web interface
+cc-switch web
 
 # Enter empty mode (disable all configurations temporarily)
 cc-switch use --empty
@@ -166,6 +253,7 @@ Opens the configuration in your default text editor for modification.
 
 | Command | Description |
 |---------|-------------|
+| `init` | Initialize Claude Code configuration with interactive setup |
 | `list` | List all available configurations |
 | `new <name>` | Create a new configuration |
 | `use <name>` | Switch to a configuration |
@@ -173,7 +261,13 @@ Opens the configuration in your default text editor for modification.
 | `use -e, --empty` | Enter empty mode (disable configurations) |
 | `use --restore` | Restore from empty mode to previous configuration |
 | `use -i, --interactive` | Enter interactive selection mode |
+| `cp <source> <dest>` | Copy a configuration |
+| `mv <old> <new>` | Move (rename) a configuration |
 | `delete <name>` | Delete a configuration |
+| `export [profile]` | Export configurations to backup file |
+| `import <file>` | Import configurations from backup file |
+| `test [profile]` | Test configuration API connectivity |
+| `web` | Launch web interface |
 | `current` | Show current configuration or empty mode status |
 | `view <name>` | View configuration details |
 | `edit <name>` | Edit configuration in text editor |
@@ -246,16 +340,35 @@ cc-switch/
 │   ├── delete.go
 │   ├── current.go
 │   ├── view.go
-│   └── edit.go
+│   ├── edit.go
+│   ├── cp.go               # Copy command
+│   ├── mv.go               # Move command
+│   ├── export.go           # Export command
+│   ├── import.go           # Import command
+│   ├── test.go             # Test command
+│   ├── init.go             # Init command
+│   └── web.go              # Web interface command
 ├── internal/config/        # Configuration management
 │   └── manager.go
 ├── internal/handler/       # Business logic handlers
 │   ├── config_handler.go
+│   ├── api_tester.go       # API testing functionality
 │   └── types.go
 ├── internal/ui/           # User interface layer
 │   ├── cli.go
 │   ├── interactive.go
 │   └── interfaces.go
+├── internal/web/          # Web interface
+│   ├── server.go
+│   └── handlers.go
+├── internal/export/       # Export functionality
+│   ├── exporter.go
+│   └── format.go
+├── internal/import/       # Import functionality
+│   └── importer.go
+├── internal/common/       # Common utilities
+│   ├── compress.go
+│   └── crypto.go
 ├── scripts/               # Build and install scripts
 │   ├── build.sh
 │   └── install.js
@@ -295,6 +408,12 @@ npm install -g cc-switch
 ```
 
 ### 使用方法
+
+#### 初始化配置（首次设置）
+```bash
+cc-switch init
+```
+通过交互式设置初始化 Claude Code 配置。提示输入 API token 和基础 URL。
 
 #### 列出配置
 ```bash
@@ -350,6 +469,66 @@ cc-switch delete <名称>
 ```
 删除指定配置（无法删除当前正在使用的配置）。
 
+#### 复制配置
+```bash
+cc-switch cp <源名称> <目标名称>
+```
+创建现有配置的副本并使用新名称。原配置保持不变。
+
+#### 移动（重命名）配置
+```bash
+cc-switch mv <旧名称> <新名称>
+```
+重命名现有配置。如果是当前激活的配置，标记会自动更新。
+
+#### 导出配置
+```bash
+# 导出指定配置
+cc-switch export <配置名称> -o backup.ccx
+
+# 导出所有配置
+cc-switch export --all -o all-configs.ccx
+
+# 导出当前配置
+cc-switch export --current -o current.ccx
+```
+将配置导出为加密备份文件（.ccx 格式）。支持密码保护。
+
+#### 导入配置
+```bash
+# 从备份文件导入
+cc-switch import backup.ccx
+
+# 导入并覆盖现有配置
+cc-switch import backup.ccx --overwrite
+
+# 导入并添加前缀
+cc-switch import backup.ccx --prefix team-
+```
+从加密备份文件导入配置。支持冲突解决和试运行模式。
+
+#### 测试配置连接性
+```bash
+# 测试指定配置
+cc-switch test <配置名称>
+
+# 测试当前配置
+cc-switch test --current
+
+# 测试所有配置
+cc-switch test --all
+
+# 快速连接测试
+cc-switch test --quick
+```
+测试 Claude Code API 连接性和配置认证。
+
+#### Web 界面
+```bash
+cc-switch web
+```
+在 http://localhost:13501 启动基于浏览器的配置管理界面。
+
 #### 显示当前配置
 ```bash
 cc-switch current
@@ -359,6 +538,9 @@ cc-switch current
 ### 使用示例
 
 ```bash
+# 初始化配置（首次设置）
+cc-switch init
+
 # 列出所有配置
 cc-switch list
 
@@ -370,6 +552,24 @@ cc-switch use work
 
 # 切换到上一个配置
 cc-switch use --previous
+
+# 复制配置作为备份
+cc-switch cp work work-backup
+
+# 重命名配置
+cc-switch mv work-backup work-v2
+
+# 测试当前配置
+cc-switch test --current
+
+# 导出所有配置
+cc-switch export --all -o backup.ccx
+
+# 导入配置
+cc-switch import backup.ccx
+
+# 启动 Web 界面
+cc-switch web
 
 # 进入空配置模式（临时禁用所有配置）
 cc-switch use --empty
@@ -442,6 +642,7 @@ cc-switch edit <名称>
 
 | 命令 | 说明 |
 |------|------|
+| `init` | 通过交互式设置初始化 Claude Code 配置 |
 | `list` | 列出所有可用配置 |
 | `new <名称>` | 创建新配置 |
 | `use <名称>` | 切换到配置 |
@@ -449,7 +650,13 @@ cc-switch edit <名称>
 | `use -e, --empty` | 进入空配置模式（禁用配置） |
 | `use --restore` | 从空配置模式恢复到上一个配置 |
 | `use -i, --interactive` | 进入交互选择模式 |
+| `cp <源> <目标>` | 复制配置 |
+| `mv <旧> <新>` | 移动（重命名）配置 |
 | `delete <名称>` | 删除配置 |
+| `export [配置]` | 将配置导出到备份文件 |
+| `import <文件>` | 从备份文件导入配置 |
+| `test [配置]` | 测试配置 API 连接性 |
+| `web` | 启动 Web 界面 |
 | `current` | 显示当前配置或空配置模式状态 |
 | `view <名称>` | 查看配置详情 |
 | `edit <名称>` | 在文本编辑器中编辑配置 |
@@ -522,16 +729,35 @@ cc-switch/
 │   ├── delete.go
 │   ├── current.go
 │   ├── view.go
-│   └── edit.go
+│   ├── edit.go
+│   ├── cp.go               # 复制命令
+│   ├── mv.go               # 移动命令
+│   ├── export.go           # 导出命令
+│   ├── import.go           # 导入命令
+│   ├── test.go             # 测试命令
+│   ├── init.go             # 初始化命令
+│   └── web.go              # Web 界面命令
 ├── internal/config/        # 配置管理
 │   └── manager.go
 ├── internal/handler/       # 业务逻辑处理器
 │   ├── config_handler.go
+│   ├── api_tester.go       # API 测试功能
 │   └── types.go
 ├── internal/ui/           # 用户界面层
 │   ├── cli.go
 │   ├── interactive.go
 │   └── interfaces.go
+├── internal/web/          # Web 界面
+│   ├── server.go
+│   └── handlers.go
+├── internal/export/       # 导出功能
+│   ├── exporter.go
+│   └── format.go
+├── internal/import/       # 导入功能
+│   └── importer.go
+├── internal/common/       # 通用工具
+│   ├── compress.go
+│   └── crypto.go
 ├── scripts/               # 构建和安装脚本
 │   ├── build.sh
 │   └── install.js
