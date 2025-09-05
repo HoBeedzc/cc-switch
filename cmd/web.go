@@ -38,7 +38,7 @@ The web interface allows you to:
 - Test API connectivity
 - Export and import configurations
 
-The server will be available at http://localhost:8080 (or custom host:port)`,
+The server will be available at http://localhost:13501 (or custom host:port)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkClaudeConfig(); err != nil {
 			return err
@@ -109,7 +109,7 @@ The server will be available at http://localhost:8080 (or custom host:port)`,
 }
 
 func init() {
-	webCmd.Flags().IntVarP(&webPort, "port", "p", 8080, "Port to serve on")
+	webCmd.Flags().IntVarP(&webPort, "port", "p", 13501, "Port to serve on")
 	webCmd.Flags().StringVarP(&webHost, "host", "H", "localhost", "Host to bind to")
 	webCmd.Flags().BoolVarP(&webOpen, "open", "o", false, "Open browser automatically")
 	webCmd.Flags().BoolVarP(&webQuiet, "quiet", "q", false, "Suppress startup messages")

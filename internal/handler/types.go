@@ -21,6 +21,7 @@ type ConfigHandler interface {
 	// New configuration operations
 	MoveConfig(oldName, newName string) error
 	CopyConfig(sourceName, destName string) error
+	UpdateConfig(name string, content map[string]interface{}) error
 
 	// Template management operations
 	ListTemplates() ([]string, error)

@@ -298,13 +298,13 @@ class CCSwitch {
             const result = response.data;
             
             resultsContent.innerHTML = `
-                <div class="status ${result.IsConnectable ? 'status-online' : 'status-offline'}">
-                    ${result.IsConnectable ? '✅ Connected' : '❌ Connection Failed'}
+                <div class="status ${result.is_connectable ? 'status-online' : 'status-offline'}">
+                    ${result.is_connectable ? '✅ Connected' : '❌ Connection Failed'}
                 </div>
-                <p><strong>Profile:</strong> ${result.ProfileName}</p>
-                <p><strong>Response Time:</strong> ${Math.round(result.ResponseTime / 1000000)}ms</p>
-                <p><strong>Tested At:</strong> ${new Date(result.TestedAt).toLocaleString()}</p>
-                ${result.Error ? `<p class="status-offline"><strong>Error:</strong> ${result.Error}</p>` : ''}
+                <p><strong>Profile:</strong> ${result.profile_name}</p>
+                <p><strong>Response Time:</strong> ${Math.round(result.response_time_ms / 1000000)}ms</p>
+                <p><strong>Tested At:</strong> ${new Date(result.tested_at).toLocaleString()}</p>
+                ${result.error ? `<p class="status-offline"><strong>Error:</strong> ${result.error}</p>` : ''}
             `;
             
             resultsDiv.style.display = 'block';
@@ -346,6 +346,10 @@ class CCSwitch {
             { text: 'Save Changes', class: 'btn-primary', onclick: () => this.saveProfileChanges(profile.name) }
         ]);
         document.body.appendChild(modal);
+        
+        // Initialize edit mode state
+        window.currentEditMode = 'form'; // 'form' or 'raw'
+        window.currentProfileData = profile;
     }
 
     createModal(title, content, buttons = null) {
@@ -438,12 +442,46 @@ class CCSwitch {
                 <dd>${this.escapeHtml(profile.path)}</dd>
             </div>
             
-            <form id="profile-edit-form">
-                ${this.renderEditSection('Environment Variables', 'env', content.env || {})}
-                ${this.renderEditSection('Permissions - Allow', 'permissions_allow', content.permissions?.allow || [])}
-                ${this.renderEditSection('Permissions - Deny', 'permissions_deny', content.permissions?.deny || [])}
-                ${this.renderEditSection('Status Line', 'statusLine', content.statusLine || {})}
-            </form>
+            <!-- Edit Mode Toggle -->
+            <div class="edit-mode-toggle" style="margin-bottom: 1rem;">
+                <div class="flex items-center gap-6">
+                    <label class="edit-mode-label" style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="radio" name="edit-mode" value="form" checked onchange="app.toggleEditMode('form')" style="margin-right: 0.5rem;">
+                        Form Mode
+                    </label>
+                    <label class="edit-mode-label" style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="radio" name="edit-mode" value="raw" onchange="app.toggleEditMode('raw')" style="margin-right: 0.5rem;">
+                        Raw JSON
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Form Editor -->
+            <div id="form-editor" style="display: block;">
+                <form id="profile-edit-form">
+                    ${this.renderEditSection('Environment Variables', 'env', content.env || {})}
+                    ${this.renderEditSection('Permissions - Allow', 'permissions_allow', content.permissions?.allow || [])}
+                    ${this.renderEditSection('Permissions - Deny', 'permissions_deny', content.permissions?.deny || [])}
+                    ${this.renderEditSection('Status Line', 'statusLine', content.statusLine || {})}
+                </form>
+            </div>
+            
+            <!-- Raw JSON Editor -->
+            <div id="raw-editor" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">JSON Configuration</label>
+                    <div style="position: relative;">
+                        <div id="raw-json-display" class="code-block" style="margin: 0; min-height: 400px; position: relative; z-index: 1;">
+                            ${this.syntaxHighlight(JSON.stringify(content, null, 2))}
+                        </div>
+                        <textarea id="raw-json-textarea" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; min-height: 400px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 0.875rem; line-height: 1.6; padding: 1rem; background: transparent; border: none; outline: none; resize: vertical; color: transparent; caret-color: #e5e7eb; z-index: 2;">${JSON.stringify(content, null, 2)}</textarea>
+                    </div>
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
+                        Edit the configuration as raw JSON. Make sure the syntax is valid.
+                    </small>
+                </div>
+                <div class="json-validation" id="json-validation-message" style="display: none; margin-top: 0.5rem;"></div>
+            </div>
         `;
     }
 
@@ -546,6 +584,15 @@ class CCSwitch {
     }
 
     collectFormData() {
+        // Check current edit mode
+        if (window.currentEditMode === 'raw') {
+            return this.collectRawJSONData();
+        } else {
+            return this.collectFormFieldData();
+        }
+    }
+
+    collectFormFieldData() {
         const form = document.getElementById('profile-edit-form');
         const sections = form.querySelectorAll('[data-section]');
         const data = { env: {}, permissions: { allow: [], deny: [] }, statusLine: {} };
@@ -576,6 +623,28 @@ class CCSwitch {
         });
         
         return data;
+    }
+
+    collectRawJSONData() {
+        const textarea = document.getElementById('raw-json-textarea');
+        const jsonText = textarea.value.trim();
+        
+        try {
+            const parsedData = JSON.parse(jsonText);
+            
+            // Validate that it has the expected structure
+            if (typeof parsedData !== 'object' || parsedData === null) {
+                throw new Error('Configuration must be a JSON object');
+            }
+            
+            // Clear any previous validation errors
+            this.clearJSONValidation();
+            
+            return parsedData;
+        } catch (error) {
+            this.showJSONValidationError(error.message);
+            throw new Error(`Invalid JSON: ${error.message}`);
+        }
     }
 
     syntaxHighlight(json) {
@@ -778,6 +847,120 @@ class CCSwitch {
                 }
             }
         });
+    }
+    
+    // Edit Mode Toggle Functions
+    toggleEditMode(mode) {
+        window.currentEditMode = mode;
+        
+        const formEditor = document.getElementById('form-editor');
+        const rawEditor = document.getElementById('raw-editor');
+        
+        if (mode === 'raw') {
+            // Switch to raw mode
+            formEditor.style.display = 'none';
+            rawEditor.style.display = 'block';
+            
+            // Sync data from form to raw JSON
+            this.syncFormToRaw();
+            
+            // Setup syntax highlighting overlay
+            this.setupRawEditorHighlighting();
+        } else {
+            // Switch to form mode  
+            formEditor.style.display = 'block';
+            rawEditor.style.display = 'none';
+        }
+    }
+
+    setupRawEditorHighlighting() {
+        const textarea = document.getElementById('raw-json-textarea');
+        const display = document.getElementById('raw-json-display');
+        
+        if (!textarea || !display) return;
+        
+        // Update highlighting when content changes
+        const updateHighlighting = () => {
+            const content = textarea.value;
+            try {
+                // Try to parse and format JSON
+                const parsed = JSON.parse(content);
+                const formatted = JSON.stringify(parsed, null, 2);
+                display.innerHTML = this.syntaxHighlight(formatted);
+                
+                // Update textarea with formatted content
+                textarea.value = formatted;
+                this.clearJSONValidation();
+            } catch (error) {
+                // If JSON is invalid, still show it but without highlighting
+                display.textContent = content;
+                this.showJSONValidationError(error.message);
+            }
+        };
+        
+        // Initial highlighting
+        updateHighlighting();
+        
+        // Update on input with debounce
+        let timeout;
+        textarea.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(updateHighlighting, 300);
+        });
+        
+        // Sync scroll position
+        textarea.addEventListener('scroll', () => {
+            display.scrollTop = textarea.scrollTop;
+            display.scrollLeft = textarea.scrollLeft;
+        });
+        
+        // Focus the textarea
+        textarea.focus();
+    }
+
+    syncFormToRaw() {
+        try {
+            const formData = this.collectFormFieldData();
+            const textarea = document.getElementById('raw-json-textarea');
+            const display = document.getElementById('raw-json-display');
+            
+            if (textarea && display) {
+                const formatted = JSON.stringify(formData, null, 2);
+                textarea.value = formatted;
+                display.innerHTML = this.syntaxHighlight(formatted);
+                this.clearJSONValidation();
+            }
+        } catch (error) {
+            console.error('Failed to sync form to raw:', error);
+        }
+    }
+
+    syncRawToForm() {
+        try {
+            const rawData = this.collectRawJSONData();
+            // For now, we don't automatically sync back to form to avoid data loss
+            // User needs to switch modes manually if they want form editing
+        } catch (error) {
+            // If raw JSON is invalid, don't sync
+            console.log('Raw JSON invalid, not syncing to form');
+        }
+    }
+
+    // JSON Validation UI Functions
+    showJSONValidationError(message) {
+        const validationDiv = document.getElementById('json-validation-message');
+        if (validationDiv) {
+            validationDiv.style.display = 'block';
+            validationDiv.innerHTML = `<div style="color: #e74c3c; font-size: 14px;">❌ ${this.escapeHtml(message)}</div>`;
+        }
+    }
+
+    clearJSONValidation() {
+        const validationDiv = document.getElementById('json-validation-message');
+        if (validationDiv) {
+            validationDiv.style.display = 'none';
+            validationDiv.innerHTML = '';
+        }
     }
 }
 

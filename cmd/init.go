@@ -48,12 +48,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		fmt.Println("💡 建议先使用 'cc-switch use --restore' 或 'cc-switch use <profile>' 退出 empty mode")
 		fmt.Println()
 
-		// Ask user if they want to continue
 		if !uiProvider.ConfirmAction("是否继续初始化？", false) {
 			fmt.Println("初始化已取消")
 			return nil
 		}
-		fmt.Println()
 
 		// If user chooses to continue in empty mode, don't show "already initialized"
 		// message even if profiles exist, because we're in a special state
@@ -98,8 +96,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Perform initialization
-	fmt.Println()
-	fmt.Println("Creating configuration...")
+	fmt.Println("\nCreating configuration...")
 
 	if err := configHandler.InitializeConfig(authToken, baseURL); err != nil {
 		return fmt.Errorf("failed to initialize configuration: %w", err)

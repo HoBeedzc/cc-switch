@@ -315,8 +315,7 @@ func (ui *interactiveUI) DisplayConfiguration(view *handler.ConfigView, raw bool
 		} else {
 			fmt.Println("Status: Available")
 		}
-		fmt.Printf("Path: %s\n", view.Path)
-		fmt.Println()
+		fmt.Printf("Path: %s\n\n", view.Path)
 
 		color.Yellow("Content:")
 		jsonData, err := json.MarshalIndent(view.Content, "", "  ")

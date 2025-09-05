@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -329,42 +330,61 @@ func (api *APIHandler) getProfile(w http.ResponseWriter, r *http.Request, profil
 }
 
 func (api *APIHandler) updateProfile(w http.ResponseWriter, r *http.Request, profileName string) {
-	var request struct {
-		Env         map[string]string `json:"env"`
-		Permissions struct {
-			Allow []string `json:"allow"`
-			Deny  []string `json:"deny"`
-		} `json:"permissions"`
-		StatusLine map[string]interface{} `json:"statusLine"`
+	// For Raw JSON mode, we accept the entire configuration object
+	// For Form mode, we accept the structured request format
+	
+	// First, try to decode as complete JSON configuration
+	var completeConfig map[string]interface{}
+	body := r.Body
+	
+	// Read the body first
+	bodyBytes, err := io.ReadAll(body)
+	if err != nil {
+		api.sendError(w, "Failed to read request body", http.StatusBadRequest)
+		return
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	
+	// Try to decode as complete configuration first
+	if err := json.Unmarshal(bodyBytes, &completeConfig); err != nil {
 		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-
-	// Get current configuration to preserve other fields
-	currentView, err := api.handler.ViewConfig(profileName, true)
-	if err != nil {
-		api.sendError(w, fmt.Sprintf("Failed to get current config: %v", err), http.StatusNotFound)
+	
+	// Check if this is a structured form request (has env, permissions, statusLine at top level)
+	if env, hasEnv := completeConfig["env"]; hasEnv {
+		if permissions, hasPerms := completeConfig["permissions"]; hasPerms {
+			if statusLine, hasStatus := completeConfig["statusLine"]; hasStatus {
+				// This looks like a form request, use it directly
+				updatedConfig := map[string]interface{}{
+					"env":         env,
+					"permissions": permissions,
+					"statusLine":  statusLine,
+				}
+				
+				// Call the handler to update the configuration
+				if err := api.handler.UpdateConfig(profileName, updatedConfig); err != nil {
+					api.sendError(w, fmt.Sprintf("Failed to update profile: %v", err), http.StatusInternalServerError)
+					return
+				}
+				
+				api.sendSuccess(w, map[string]interface{}{
+					"message": fmt.Sprintf("Profile '%s' updated successfully", profileName),
+					"name":    profileName,
+				})
+				return
+			}
+		}
+	}
+	
+	// Otherwise, treat it as raw JSON configuration - use the entire object
+	if err := api.handler.UpdateConfig(profileName, completeConfig); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to update profile: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Merge the updates with existing configuration
-	updatedConfig := currentView.Content
-	updatedConfig["env"] = request.Env
-	updatedConfig["permissions"] = map[string]interface{}{
-		"allow": request.Permissions.Allow,
-		"deny":  request.Permissions.Deny,
-	}
-	updatedConfig["statusLine"] = request.StatusLine
-
-	// For now, we'll return success since the handler interface doesn't have update methods
-	// In a real implementation, you'd need to add an UpdateConfig method to the handler
 	api.sendSuccess(w, map[string]interface{}{
-		"message": fmt.Sprintf("Profile '%s' would be updated", profileName),
+		"message": fmt.Sprintf("Profile '%s' updated successfully", profileName),
 		"name":    profileName,
-		"data":    updatedConfig,
 	})
 }
 

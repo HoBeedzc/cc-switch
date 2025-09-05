@@ -254,6 +254,26 @@ func (h *configHandler) CopyConfig(sourceName, destName string) error {
 	return h.configManager.CopyProfile(sourceName, destName)
 }
 
+// UpdateConfig updates a configuration with new content
+func (h *configHandler) UpdateConfig(name string, content map[string]interface{}) error {
+	// Validate configuration exists
+	if err := h.ValidateConfigExists(name); err != nil {
+		return err
+	}
+
+	// Validate content is not nil
+	if content == nil {
+		return fmt.Errorf("content cannot be nil")
+	}
+
+	// Update the configuration using the config manager
+	if err := h.configManager.UpdateProfile(name, content); err != nil {
+		return fmt.Errorf("failed to update configuration '%s': %w", name, err)
+	}
+
+	return nil
+}
+
 // editProfileField edits a specific field in the configuration
 func (h *configHandler) editProfileField(name, field string) error {
 	content, _, err := h.configManager.GetProfileContent(name)

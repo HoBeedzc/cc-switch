@@ -179,7 +179,7 @@ func validateExportFlags(args []string) error {
 func promptForPassword(prompt string) (string, error) {
 	fmt.Print(prompt)
 	password, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println() // New line after password input
+	fmt.Print("\n") // New line after password input
 	if err != nil {
 		return "", err
 	}
@@ -189,7 +189,7 @@ func promptForPassword(prompt string) (string, error) {
 	if passwordStr != "" {
 		fmt.Print("Confirm password: ")
 		confirm, err := term.ReadPassword(int(syscall.Stdin))
-		fmt.Println()
+		fmt.Print("\n")
 		if err != nil {
 			return "", err
 		}
