@@ -39,7 +39,7 @@ The interactive mode allows you to browse and select configurations with arrow k
 		}
 
 		configHandler := handler.NewConfigHandler(cm)
-		
+
 		// Get flags
 		interactiveFlag, _ := cmd.Flags().GetBool("interactive")
 		force, _ := cmd.Flags().GetBool("force")

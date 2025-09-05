@@ -332,24 +332,24 @@ func (api *APIHandler) getProfile(w http.ResponseWriter, r *http.Request, profil
 func (api *APIHandler) updateProfile(w http.ResponseWriter, r *http.Request, profileName string) {
 	// For Raw JSON mode, we accept the entire configuration object
 	// For Form mode, we accept the structured request format
-	
+
 	// First, try to decode as complete JSON configuration
 	var completeConfig map[string]interface{}
 	body := r.Body
-	
+
 	// Read the body first
 	bodyBytes, err := io.ReadAll(body)
 	if err != nil {
 		api.sendError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	// Try to decode as complete configuration first
 	if err := json.Unmarshal(bodyBytes, &completeConfig); err != nil {
 		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	
+
 	// Check if this is a structured form request (has env, permissions, statusLine at top level)
 	if env, hasEnv := completeConfig["env"]; hasEnv {
 		if permissions, hasPerms := completeConfig["permissions"]; hasPerms {
@@ -360,13 +360,13 @@ func (api *APIHandler) updateProfile(w http.ResponseWriter, r *http.Request, pro
 					"permissions": permissions,
 					"statusLine":  statusLine,
 				}
-				
+
 				// Call the handler to update the configuration
 				if err := api.handler.UpdateConfig(profileName, updatedConfig); err != nil {
 					api.sendError(w, fmt.Sprintf("Failed to update profile: %v", err), http.StatusInternalServerError)
 					return
 				}
-				
+
 				api.sendSuccess(w, map[string]interface{}{
 					"message": fmt.Sprintf("Profile '%s' updated successfully", profileName),
 					"name":    profileName,
@@ -375,7 +375,7 @@ func (api *APIHandler) updateProfile(w http.ResponseWriter, r *http.Request, pro
 			}
 		}
 	}
-	
+
 	// Otherwise, treat it as raw JSON configuration - use the entire object
 	if err := api.handler.UpdateConfig(profileName, completeConfig); err != nil {
 		api.sendError(w, fmt.Sprintf("Failed to update profile: %v", err), http.StatusInternalServerError)
