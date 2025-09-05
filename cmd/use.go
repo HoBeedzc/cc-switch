@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"cc-switch/internal/config"
@@ -120,8 +119,7 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 	}
 
 	if len(profiles) == 0 {
-		uiProvider.ShowWarning("No configurations found.")
-		fmt.Println("Use 'cc-switch new <name>' to create your first configuration.")
+		uiProvider.ShowWarning("No configurations found. Use 'cc-switch new <name>' to create your first configuration.")
 		return nil
 	}
 
@@ -185,15 +183,14 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 	}
 
 	uiProvider.ShowSuccess("Switched to configuration '%s'", targetName)
-	
+
 	// Launch Claude Code if requested
 	if launchCode {
 		if err := launchClaudeCode(uiProvider); err != nil {
-			uiProvider.ShowWarning("Failed to launch Claude Code: %v", err)
-			fmt.Println("💡 You can still launch Claude Code manually with: claude")
+			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -209,13 +206,11 @@ func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIP
 	previousName, err := configHandler.GetPreviousConfig()
 	if err != nil {
 		if err.Error() == "no previous configuration available" {
-			uiProvider.ShowWarning("No previous configuration available")
-			fmt.Println("💡 Use 'cc-switch use <name>' to switch configurations first")
+			uiProvider.ShowWarning("No previous configuration available. Use 'cc-switch use <name>' to switch configurations first")
 			return nil
 		}
 		if strings.Contains(err.Error(), "no longer exists") {
-			uiProvider.ShowWarning(err.Error())
-			fmt.Println("💡 The previous configuration has been deleted")
+			uiProvider.ShowWarning(err.Error() + ". The previous configuration has been deleted")
 			return nil
 		}
 		uiProvider.ShowError(err)
@@ -253,8 +248,7 @@ func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIP
 	// Launch Claude Code if requested
 	if launchCode {
 		if err := launchClaudeCode(uiProvider); err != nil {
-			uiProvider.ShowWarning("Failed to launch Claude Code: %v", err)
-			fmt.Println("💡 You can still launch Claude Code manually with: claude")
+			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
 		}
 	}
 
@@ -265,9 +259,7 @@ func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIP
 func handleEmptyMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvider) error {
 	// Check if already in empty mode
 	if configHandler.IsEmptyMode() {
-		uiProvider.ShowWarning("Already in empty mode")
-		fmt.Println("💡 Use 'cc-switch use <profile>' to restore a configuration")
-		fmt.Println("💡 Use 'cc-switch use --restore' to restore the previous configuration")
+		uiProvider.ShowWarning("Already in empty mode. Use 'cc-switch use <profile>' to restore or 'cc-switch use --restore' for previous configuration")
 		return nil
 	}
 
@@ -281,12 +273,11 @@ func handleEmptyMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvid
 	}
 
 	// Show success message
-	uiProvider.ShowSuccess("Empty mode enabled. Settings temporarily removed.")
 	if currentName != "" {
-		fmt.Printf("💡 Previous configuration: %s\n", currentName)
+		uiProvider.ShowSuccess("Empty mode enabled. Previous: %s. Use 'cc-switch use <profile>' to restore or '--restore' for previous", currentName)
+	} else {
+		uiProvider.ShowSuccess("Empty mode enabled. Use 'cc-switch use <profile>' to restore a configuration")
 	}
-	fmt.Println("💡 Use 'cc-switch use <profile>' to restore a configuration")
-	fmt.Println("💡 Use 'cc-switch use --restore' to restore the previous configuration")
 
 	return nil
 }
@@ -308,8 +299,7 @@ func handleRestoreMode(configHandler handler.ConfigHandler, uiProvider ui.UIProv
 
 	// Check if we can restore to previous
 	if !status.CanRestore {
-		uiProvider.ShowWarning("No previous configuration to restore to")
-		fmt.Println("💡 Use 'cc-switch use <profile>' to switch to a specific configuration")
+		uiProvider.ShowWarning("No previous configuration to restore to. Use 'cc-switch use <profile>' to switch to a specific configuration")
 		return nil
 	}
 
@@ -320,15 +310,14 @@ func handleRestoreMode(configHandler handler.ConfigHandler, uiProvider ui.UIProv
 	}
 
 	uiProvider.ShowSuccess("Restored to previous configuration '%s'", status.PreviousProfile)
-	
+
 	// Launch Claude Code if requested
 	if launchCode {
 		if err := launchClaudeCode(uiProvider); err != nil {
-			uiProvider.ShowWarning("Failed to launch Claude Code: %v", err)
-			fmt.Println("💡 You can still launch Claude Code manually with: claude")
+			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -340,19 +329,18 @@ func launchClaudeCode(uiProvider ui.UIProvider) error {
 		return fmt.Errorf("Claude Code CLI not found: %w", err)
 	}
 
-	uiProvider.ShowInfo("Starting Claude Code CLI in current terminal...")
-	fmt.Println("💡 Press Ctrl+C or type 'exit' to return to your shell when done")
-	fmt.Println("") // Add a blank line for better visual separation
-	
+	uiProvider.ShowInfo("Starting Claude Code CLI in current terminal... (Press Ctrl+C or type 'exit' to return)")
+	fmt.Println("") // Visual separation
+
 	// Create the command with proper terminal inheritance
 	cmd := exec.Command(claudePath)
-	
+
 	// Inherit the current terminal's stdin, stdout, and stderr
 	// This allows Claude Code to run interactively in the current terminal
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout  
+	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	// Start the process and wait for it to complete
 	// This will make Claude Code take over the current terminal
 	if err := cmd.Run(); err != nil {
@@ -367,7 +355,7 @@ func launchClaudeCode(uiProvider ui.UIProvider) error {
 		}
 		return fmt.Errorf("Claude Code exited with error: %w", err)
 	}
-	
+
 	// This line will execute after Claude Code exits normally
 	uiProvider.ShowInfo("Claude Code session ended")
 	return nil
@@ -381,7 +369,7 @@ func findClaudeCodeExecutable() (string, error) {
 		"claude-code", // Alternative installation
 		"code",        // Some setups might alias this way
 	}
-	
+
 	for _, cmd := range possibleCommands {
 		// Check if command exists and is executable
 		if path, err := exec.LookPath(cmd); err == nil {
@@ -391,7 +379,7 @@ func findClaudeCodeExecutable() (string, error) {
 			}
 		}
 	}
-	
+
 	return "", fmt.Errorf("Claude Code CLI executable not found in PATH. Please install Claude Code CLI or ensure 'claude' command is available")
 }
 
@@ -403,7 +391,7 @@ func isClaudeCodeCLI(execPath string) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	outputStr := strings.ToLower(string(output))
 	// Look for indicators that this is Claude Code CLI
 	claudeIndicators := []string{
@@ -411,19 +399,14 @@ func isClaudeCodeCLI(execPath string) bool {
 		"anthropic",
 		"claude code",
 	}
-	
+
 	for _, indicator := range claudeIndicators {
 		if strings.Contains(outputStr, indicator) {
 			return true
 		}
 	}
-	
-	return false
-}
 
-// isOnMacOS checks if the current operating system is macOS
-func isOnMacOS() bool {
-	return runtime.GOOS == "darwin"
+	return false
 }
 
 func init() {

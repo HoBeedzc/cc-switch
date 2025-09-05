@@ -35,11 +35,9 @@ var currentCmd = &cobra.Command{
 
 			color.Yellow("Empty mode (no configuration active)")
 			if status.PreviousProfile != "" {
-				fmt.Printf("💡 Previous configuration: %s\n", status.PreviousProfile)
-				fmt.Printf("💡 Enabled at: %s\n", status.Timestamp)
-				fmt.Println("💡 Use 'cc-switch use --restore' to restore previous configuration")
+				fmt.Printf("Previous: %s (Enabled: %s). Use 'cc-switch use --restore' to restore\n", status.PreviousProfile, status.Timestamp)
 			} else {
-				fmt.Println("💡 Use 'cc-switch use <profile>' to activate a configuration")
+				fmt.Println("Use 'cc-switch use <profile>' to activate a configuration")
 			}
 			return nil
 		}

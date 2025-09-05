@@ -38,8 +38,7 @@ var listCmd = &cobra.Command{
 		}
 
 		if len(profiles) == 0 {
-			fmt.Println("No configurations found.")
-			fmt.Println("Use 'cc-switch new <name>' to create your first configuration.")
+			fmt.Println("No configurations found. Use 'cc-switch new <name>' to create your first configuration.")
 			return nil
 		}
 
@@ -54,9 +53,7 @@ var listCmd = &cobra.Command{
 
 		// Show helpful tips if in empty mode
 		if configHandler.IsEmptyMode() {
-			fmt.Println()
-			fmt.Println("💡 Use 'cc-switch use <name>' to activate a configuration")
-			fmt.Println("💡 Use 'cc-switch use --restore' to restore previous configuration")
+			fmt.Println("\n💡 Use 'cc-switch use <name>' to activate a configuration or 'cc-switch use --restore' to restore previous")
 		}
 
 		return nil

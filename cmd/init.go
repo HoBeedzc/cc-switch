@@ -44,12 +44,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Check if in empty mode and warn user FIRST
 	if configManager.IsEmptyMode() {
-		uiProvider.ShowWarning("当前处于 empty mode，可能会出现未知错误")
-		fmt.Println("💡 建议先使用 'cc-switch use --restore' 或 'cc-switch use <profile>' 退出 empty mode")
+		uiProvider.ShowWarning("Currently in empty mode, which may cause unexpected errors. Recommend using 'cc-switch use --restore' or 'cc-switch use <profile>' to exit empty mode first")
 		fmt.Println()
 
-		if !uiProvider.ConfirmAction("是否继续初始化？", false) {
-			fmt.Println("初始化已取消")
+		if !uiProvider.ConfirmAction("Continue with initialization?", false) {
+			fmt.Println("Initialization cancelled")
 			return nil
 		}
 

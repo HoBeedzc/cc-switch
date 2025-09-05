@@ -194,7 +194,7 @@ func runTestSingle(configHandler handler.ConfigHandler, uiProvider ui.UIProvider
 func runTestAll(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, options handler.TestOptions) error {
 	if !options.JSONOutput {
 		uiProvider.ShowInfo("Testing all configurations...")
-	fmt.Println()
+		fmt.Println()
 	}
 
 	results, err := configHandler.TestAllConfigurations(options)
