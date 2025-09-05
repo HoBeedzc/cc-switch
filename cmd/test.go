@@ -194,7 +194,7 @@ func runTestSingle(configHandler handler.ConfigHandler, uiProvider ui.UIProvider
 func runTestAll(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, options handler.TestOptions) error {
 	if !options.JSONOutput {
 		uiProvider.ShowInfo("Testing all configurations...")
-		fmt.Println()
+	fmt.Println()
 	}
 
 	results, err := configHandler.TestAllConfigurations(options)
@@ -324,10 +324,7 @@ func displaySingleResultWithUI(uiProvider ui.UIProvider, result *handler.APITest
 		return displayJSONResult(result)
 	}
 
-	// Display header
-	fmt.Println()
-
-	// Handle error case
+	// Display header and handle error case
 	if result.Error != "" {
 		uiProvider.ShowError(fmt.Errorf("❌ %s", result.Error))
 		return nil
@@ -351,7 +348,6 @@ func displaySingleResultWithUI(uiProvider ui.UIProvider, result *handler.APITest
 	}
 
 	// Display summary
-	fmt.Println()
 	if result.IsConnectable {
 		uiProvider.ShowSuccess("✅ Result: Configuration is functional")
 		fmt.Printf("   Total response time: %s\n", formatDuration(result.ResponseTime))
@@ -428,7 +424,6 @@ func displayAllResultsWithUI(uiProvider ui.UIProvider, results []handler.APITest
 	}
 
 	// Display summary
-	fmt.Println()
 	summaryMsg := fmt.Sprintf("Summary: %d/%d configurations functional", validCount, totalCount)
 	if validCount == totalCount {
 		uiProvider.ShowSuccess("✅ %s", summaryMsg)

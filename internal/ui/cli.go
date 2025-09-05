@@ -164,10 +164,9 @@ func (ui *cliUI) DisplayConfiguration(view *handler.ConfigView, raw bool) error 
 		if view.IsCurrent {
 			color.Green("Status: Current")
 		} else {
-			fmt.Println("Status: Available")
+			color.White("Status: Available")
 		}
-		fmt.Printf("Path: %s\n", view.Path)
-		fmt.Println()
+		fmt.Printf("Path: %s\n\n", view.Path)
 
 		color.Yellow("Content:")
 		jsonData, err := json.MarshalIndent(view.Content, "", "  ")
