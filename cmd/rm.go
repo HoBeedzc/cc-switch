@@ -12,20 +12,26 @@ import (
 
 var rmCmd = &cobra.Command{
 	Use:   "rm [name]",
-	Short: "Remove a configuration",
-	Long: `Remove the specified configuration with enhanced deletion options.
+	Short: "Remove a configuration or template",
+	Long: `Remove the specified configuration or template with enhanced deletion options.
 
-Modes:
+Configuration Modes:
 - Interactive: cc-switch rm (no arguments) or cc-switch rm -i
 - CLI: cc-switch rm <name>
+
+Template Modes:
+- Interactive: cc-switch rm -t (no template name) or cc-switch rm -t -i
+- CLI: cc-switch rm -t <template-name>
 
 Enhanced Options:
 - -a, --all: Delete ALL configurations (requires manual confirmation, cannot use with -f/-y)
 - -c, --current: Delete current configuration and enter EMPTY MODE
+- -t, --template: Delete template instead of configuration
 - -y, --yes: Skip confirmation prompts (cannot use with --all)
 - -f, --force: Legacy force flag (same as --yes, cannot use with --all)
 
-The interactive mode allows you to browse and select configurations with arrow keys.`,
+The interactive mode allows you to browse and select configurations/templates with arrow keys.
+Note: The default template cannot be deleted for system safety.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkClaudeConfig(); err != nil {
@@ -46,10 +52,16 @@ The interactive mode allows you to browse and select configurations with arrow k
 		all, _ := cmd.Flags().GetBool("all")
 		current, _ := cmd.Flags().GetBool("current")
 		yes, _ := cmd.Flags().GetBool("yes")
+		template, _ := cmd.Flags().GetBool("template")
 
 		// Validate flag combinations
-		if err := validateRemoveFlags(all, force, yes, args); err != nil {
+		if err := validateRemoveFlags(all, force, yes, current, template, args); err != nil {
 			return err
+		}
+
+		// Handle template operations
+		if template {
+			return executeTemplateOperations(configHandler, args, template, interactiveFlag, force || yes)
 		}
 
 		// Create UI provider based on mode
@@ -66,7 +78,12 @@ The interactive mode allows you to browse and select configurations with arrow k
 }
 
 // validateRemoveFlags validates flag combinations for the rm command
-func validateRemoveFlags(all, force, yes bool, args []string) error {
+func validateRemoveFlags(all, force, yes, current, template bool, args []string) error {
+	// Template operations cannot be combined with configuration operations
+	if template && (all || current) {
+		return fmt.Errorf("--template (-t) cannot be combined with --all (-a) or --current (-c) flags")
+	}
+
 	// --all cannot be combined with -f/--force or -y/--yes
 	if all && (force || yes) {
 		return fmt.Errorf("--all flag cannot be combined with --force (-f) or --yes (-y) flags")
@@ -237,10 +254,90 @@ func executeRemove(configHandler handler.ConfigHandler, uiProvider ui.UIProvider
 	return nil
 }
 
+// executeTemplateOperations handles template-related operations
+func executeTemplateOperations(configHandler handler.ConfigHandler, args []string, template, interactive, skipConfirm bool) error {
+	// Template deletion logic
+	var targetTemplate string
+
+	// Determine execution mode
+	if len(args) == 0 {
+		// Interactive template selection
+		templates, err := configHandler.ListTemplates()
+		if err != nil {
+			return fmt.Errorf("failed to list templates: %w", err)
+		}
+
+		if len(templates) == 0 {
+			fmt.Println("No templates found to remove.")
+			return nil
+		}
+
+		// Filter out default template (cannot be deleted)
+		var deletableTemplates []string
+		for _, tmpl := range templates {
+			if tmpl != "default" {
+				deletableTemplates = append(deletableTemplates, tmpl)
+			}
+		}
+
+		if len(deletableTemplates) == 0 {
+			fmt.Println("No templates available for deletion (default template cannot be removed).")
+			return nil
+		}
+
+		// Simple CLI selection for templates
+		fmt.Println("Available templates for deletion:")
+		for i, tmpl := range deletableTemplates {
+			fmt.Printf("  %d) %s\n", i+1, tmpl)
+		}
+
+		fmt.Printf("Select template to delete (1-%d): ", len(deletableTemplates))
+		var selection int
+		if _, err := fmt.Scanln(&selection); err != nil || selection < 1 || selection > len(deletableTemplates) {
+			return fmt.Errorf("invalid selection")
+		}
+		targetTemplate = deletableTemplates[selection-1]
+	} else {
+		// CLI mode with template name provided
+		targetTemplate = args[0]
+	}
+
+	// Safety check: prevent deletion of default template
+	if targetTemplate == "default" {
+		return fmt.Errorf("default template cannot be deleted")
+	}
+
+	// Validate template exists
+	if err := configHandler.ValidateTemplateExists(targetTemplate); err != nil {
+		return fmt.Errorf("template '%s' does not exist", targetTemplate)
+	}
+
+	// Confirm deletion if not skipping
+	if !skipConfirm {
+		confirmMsg := fmt.Sprintf("Are you sure you want to delete template '%s'?", targetTemplate)
+		fmt.Printf("%s (y/N): ", confirmMsg)
+		var confirmation string
+		fmt.Scanln(&confirmation)
+		if confirmation != "y" && confirmation != "Y" && confirmation != "yes" && confirmation != "YES" {
+			fmt.Println("Operation cancelled")
+			return nil
+		}
+	}
+
+	// Execute template deletion
+	if err := configHandler.DeleteTemplate(targetTemplate); err != nil {
+		return fmt.Errorf("failed to delete template: %w", err)
+	}
+
+	fmt.Printf("Template '%s' deleted successfully\n", targetTemplate)
+	return nil
+}
+
 func init() {
 	rmCmd.Flags().BoolP("force", "f", false, "Force remove without confirmation (cannot use with --all)")
 	rmCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
 	rmCmd.Flags().BoolP("all", "a", false, "Delete ALL configurations (requires manual confirmation)")
 	rmCmd.Flags().BoolP("current", "c", false, "Delete current configuration and enter EMPTY MODE")
 	rmCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompts (cannot use with --all)")
+	rmCmd.Flags().BoolP("template", "t", false, "Delete template instead of configuration")
 }

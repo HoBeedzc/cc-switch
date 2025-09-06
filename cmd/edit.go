@@ -11,10 +11,9 @@ import (
 )
 
 var (
-	editField     string
-	useNano       bool
-	templateName  string
-	listTemplates bool
+	editField    string
+	useNano      bool
+	templateName string
 )
 
 var editCmd = &cobra.Command{
@@ -29,7 +28,6 @@ Configuration Mode:
 
 Template Mode:
 - Edit template: cc-switch edit -t <template-name> or cc-switch edit --template <template-name>
-- List templates: cc-switch edit -t --list or cc-switch edit --template --list
 
 The interactive mode allows you to browse and select configurations with arrow keys.
 The --current flag edits the currently active configuration.
@@ -54,17 +52,11 @@ Changes are validated for JSON syntax before saving.`,
 
 		configHandler := handler.NewConfigHandler(cm)
 		templateName, _ := cmd.Flags().GetString("template")
-		listTemplates, _ := cmd.Flags().GetBool("list")
 		field, _ := cmd.Flags().GetString("field")
 		nano, _ := cmd.Flags().GetBool("nano")
 		current, _ := cmd.Flags().GetBool("current")
 
 		// Template mode handling
-		if listTemplates {
-			// If just --list without template name, list templates
-			return executeListTemplates(configHandler)
-		}
-
 		if templateName != "" {
 			return executeEditTemplate(configHandler, templateName, field, nano)
 		}
@@ -143,26 +135,6 @@ func executeEdit(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, 
 	return nil
 }
 
-// executeListTemplates handles listing templates
-func executeListTemplates(configHandler handler.ConfigHandler) error {
-	templates, err := configHandler.ListTemplates()
-	if err != nil {
-		return fmt.Errorf("failed to list templates: %w", err)
-	}
-
-	if len(templates) == 0 {
-		fmt.Println("No templates found.")
-		return nil
-	}
-
-	fmt.Println("Available templates:")
-	for _, template := range templates {
-		fmt.Printf("  %s\n", template)
-	}
-
-	return nil
-}
-
 // executeEditTemplate handles template editing
 func executeEditTemplate(configHandler handler.ConfigHandler, templateName string, field string, useNano bool) error {
 	if templateName == "" {
@@ -207,6 +179,5 @@ func init() {
 	editCmd.Flags().BoolVar(&useNano, "nano", false, "Use nano editor instead of default")
 	editCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
 	editCmd.Flags().StringVarP(&templateName, "template", "t", "", "Edit template instead of configuration")
-	editCmd.Flags().BoolVar(&listTemplates, "list", false, "List available templates (use with --template)")
 	editCmd.Flags().BoolP("current", "c", false, "Edit current active configuration")
 }
