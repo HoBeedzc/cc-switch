@@ -34,15 +34,29 @@ Initialize Claude Code configuration with interactive setup. Prompts for API tok
 
 #### Create New Configuration
 ```bash
+# Create from default template
 cc-switch new <name>
+
+# Create from specific template
+cc-switch new <name> -t <template>
+cc-switch new <name> --template <template>
+
+# Interactive template creation (fills template fields interactively)
+cc-switch new <name> -i
+cc-switch new <name> --interactive
 ```
-Creates a new configuration by copying the current Claude Code settings.
+Creates a new configuration using template structure. The default template provides a basic structure, and interactive mode allows you to fill in template fields with guided prompts.
 
 #### Switch Configuration
 ```bash
+# Switch to specific configuration
 cc-switch use <name>
+
+# Launch Claude Code CLI after switching
+cc-switch use <name> -l
+cc-switch use <name> --launch
 ```
-Switches to the specified configuration.
+Switches to the specified configuration. Use the `--launch` flag to automatically start Claude Code CLI after switching.
 
 #### Switch to Previous Configuration
 ```bash
@@ -76,9 +90,26 @@ Enters interactive mode where you can select configurations using arrow keys. In
 
 #### Delete Configuration
 ```bash
-cc-switch delete <name>
+# Delete specific configuration
+cc-switch rm <name>
+
+# Interactive deletion mode
+cc-switch rm
+cc-switch rm -i
+
+# Delete current configuration and enter empty mode
+cc-switch rm -c
+cc-switch rm --current
+
+# Delete all configurations (requires manual confirmation)
+cc-switch rm -a
+cc-switch rm --all
+
+# Skip confirmation prompts
+cc-switch rm <name> -y
+cc-switch rm <name> --yes
 ```
-Deletes the specified configuration (cannot delete currently active one).
+Deletes configurations with various options. Cannot delete currently active configuration unless using `--current` flag. The `--all` flag requires typing "DELETE ALL" for safety.
 
 #### Copy Configuration
 ```bash
@@ -140,6 +171,33 @@ cc-switch web
 ```
 Launch a browser-based interface for managing configurations at http://localhost:13501.
 
+#### Template Management
+```bash
+# List available templates
+cc-switch list -t
+cc-switch list --template
+
+# Delete a template (interactive mode)
+cc-switch rm -t
+cc-switch rm --template
+
+# Delete specific template
+cc-switch rm -t <template-name>
+
+# Copy template
+cc-switch cp -t <source-template> <dest-template>
+
+# Move (rename) template
+cc-switch mv -t <old-template> <new-template>
+
+# View template content
+cc-switch view -t <template-name>
+
+# Edit template
+cc-switch edit -t <template-name>
+```
+Templates provide pre-configured structures for creating new configurations. The default template cannot be deleted for system safety.
+
 #### Show Current Configuration
 ```bash
 cc-switch current
@@ -155,11 +213,23 @@ cc-switch init
 # List all configurations
 cc-switch list
 
-# Create a work configuration
+# List all templates
+cc-switch list -t
+
+# Create a work configuration from default template
 cc-switch new work
+
+# Create configuration from specific template
+cc-switch new personal -t company-template
+
+# Create configuration with interactive template filling
+cc-switch new dev-env -i
 
 # Switch to work configuration
 cc-switch use work
+
+# Switch and launch Claude Code CLI
+cc-switch use work --launch
 
 # Switch to previous configuration
 cc-switch use --previous
@@ -204,7 +274,18 @@ cc-switch view work
 cc-switch edit work
 
 # Delete unused configuration
-cc-switch delete old-config
+cc-switch rm old-config
+
+# Delete current configuration and enter empty mode
+cc-switch rm --current
+
+# Interactive deletion
+cc-switch rm -i
+
+# Template management
+cc-switch view -t default
+cc-switch cp -t default my-template
+cc-switch edit -t my-template
 ```
 
 ### How It Works
@@ -218,6 +299,9 @@ The tool manages configurations in `~/.claude/profiles/` directory:
 │   ├── default.json       # Default configuration
 │   ├── work.json          # Work configuration
 │   ├── personal.json      # Personal configuration
+│   ├── templates/         # Configuration templates
+│   │   ├── default.json   # Default template (cannot be deleted)
+│   │   └── company.json   # Custom company template
 │   └── .empty_backup_settings.json  # Backup when in empty mode
 ├── .current              # Current configuration marker
 └── .empty_mode           # Empty mode state file (present in empty mode)
@@ -255,22 +339,63 @@ Opens the configuration in your default text editor for modification.
 |---------|-------------|
 | `init` | Initialize Claude Code configuration with interactive setup |
 | `list` | List all available configurations |
-| `new <name>` | Create a new configuration |
+| `list -t, --template` | List all available templates |
+| `new <name>` | Create a new configuration from default template |
+| `new <name> -t <template>` | Create a new configuration from specific template |
+| `new <name> -i, --interactive` | Create configuration with interactive template filling |
 | `use <name>` | Switch to a configuration |
+| `use <name> -l, --launch` | Switch to a configuration and launch Claude Code CLI |
 | `use -p, --previous` | Switch to previous configuration |
 | `use -e, --empty` | Enter empty mode (disable configurations) |
 | `use --restore` | Restore from empty mode to previous configuration |
 | `use -i, --interactive` | Enter interactive selection mode |
 | `cp <source> <dest>` | Copy a configuration |
+| `cp -t <source> <dest>` | Copy a template |
 | `mv <old> <new>` | Move (rename) a configuration |
-| `delete <name>` | Delete a configuration |
+| `mv -t <old> <new>` | Move (rename) a template |
+| `rm <name>` | Delete a configuration |
+| `rm -c, --current` | Delete current configuration and enter empty mode |
+| `rm -a, --all` | Delete ALL configurations (requires manual confirmation) |
+| `rm -t <template>` | Delete a template |
 | `export [profile]` | Export configurations to backup file |
 | `import <file>` | Import configurations from backup file |
 | `test [profile]` | Test configuration API connectivity |
 | `web` | Launch web interface |
 | `current` | Show current configuration or empty mode status |
 | `view <name>` | View configuration details |
+| `view -t <template>` | View template details |
 | `edit <name>` | Edit configuration in text editor |
+| `edit -t <template>` | Edit template in text editor |
+
+### Template System
+
+The template system allows you to create standardized configuration structures for consistent setups across different environments.
+
+#### What are Templates?
+
+Templates are pre-configured JSON structures that serve as blueprints for creating new configurations. They can include:
+
+- **Standard Settings**: Common Claude Code settings that apply across environments
+- **Placeholder Fields**: Fields that can be filled interactively during configuration creation
+- **Environment-Specific Values**: Default values that can be customized for different use cases
+
+#### Template Features
+
+- **Default Template**: A built-in template that cannot be deleted, providing basic structure
+- **Custom Templates**: Create your own templates tailored to specific needs (company, project, etc.)
+- **Interactive Creation**: Fill template fields with guided prompts during configuration creation
+- **Template Management**: Copy, edit, view, and organize templates like configurations
+
+#### Using Templates
+
+1. **List Templates**: `cc-switch list -t` to see available templates
+2. **Create from Template**: `cc-switch new myconfig -t mytemplate` to use a specific template
+3. **Interactive Mode**: `cc-switch new myconfig -i` for guided template field input
+4. **Template Management**: Use standard operations (cp, mv, edit, view) with `-t` flag
+
+#### Template Structure
+
+Templates use the same JSON structure as configurations but may include special placeholder values that get filled during interactive creation.
 
 ### Empty Mode Feature
 
@@ -423,15 +548,29 @@ cc-switch list
 
 #### 创建新配置
 ```bash
+# 从默认模板创建
 cc-switch new <名称>
+
+# 从指定模板创建
+cc-switch new <名称> -t <模板>
+cc-switch new <名称> --template <模板>
+
+# 交互式模板创建（交互式填写模板字段）
+cc-switch new <名称> -i
+cc-switch new <名称> --interactive
 ```
-通过复制当前 Claude Code 设置来创建新配置。
+使用模板结构创建新配置。默认模板提供基本结构，交互模式允许通过引导提示填写模板字段。
 
 #### 切换配置
 ```bash
+# 切换到指定配置
 cc-switch use <名称>
+
+# 切换后启动 Claude Code CLI
+cc-switch use <名称> -l
+cc-switch use <名称> --launch
 ```
-切换到指定的配置。
+切换到指定的配置。使用 `--launch` 标志在切换后自动启动 Claude Code CLI。
 
 #### 切换到上一个配置
 ```bash
@@ -465,9 +604,26 @@ cc-switch use -i
 
 #### 删除配置
 ```bash
-cc-switch delete <名称>
+# 删除指定配置
+cc-switch rm <名称>
+
+# 交互式删除模式
+cc-switch rm
+cc-switch rm -i
+
+# 删除当前配置并进入空配置模式
+cc-switch rm -c
+cc-switch rm --current
+
+# 删除所有配置（需要手动确认）
+cc-switch rm -a
+cc-switch rm --all
+
+# 跳过确认提示
+cc-switch rm <名称> -y
+cc-switch rm <名称> --yes
 ```
-删除指定配置（无法删除当前正在使用的配置）。
+使用各种选项删除配置。无法删除当前活动配置，除非使用 `--current` 标志。`--all` 标志为安全起见需要输入 "DELETE ALL"。
 
 #### 复制配置
 ```bash
@@ -529,6 +685,33 @@ cc-switch web
 ```
 在 http://localhost:13501 启动基于浏览器的配置管理界面。
 
+#### 模板管理
+```bash
+# 列出可用模板
+cc-switch list -t
+cc-switch list --template
+
+# 删除模板（交互模式）
+cc-switch rm -t
+cc-switch rm --template
+
+# 删除指定模板
+cc-switch rm -t <模板名称>
+
+# 复制模板
+cc-switch cp -t <源模板> <目标模板>
+
+# 移动（重命名）模板
+cc-switch mv -t <旧模板> <新模板>
+
+# 查看模板内容
+cc-switch view -t <模板名称>
+
+# 编辑模板
+cc-switch edit -t <模板名称>
+```
+模板为创建新配置提供预配置结构。出于系统安全考虑，默认模板不能被删除。
+
 #### 显示当前配置
 ```bash
 cc-switch current
@@ -544,11 +727,23 @@ cc-switch init
 # 列出所有配置
 cc-switch list
 
-# 创建工作配置
+# 列出所有模板
+cc-switch list -t
+
+# 从默认模板创建工作配置
 cc-switch new work
+
+# 从指定模板创建配置
+cc-switch new personal -t company-template
+
+# 使用交互式模板填写创建配置
+cc-switch new dev-env -i
 
 # 切换到工作配置
 cc-switch use work
+
+# 切换并启动 Claude Code CLI
+cc-switch use work --launch
 
 # 切换到上一个配置
 cc-switch use --previous
@@ -593,7 +788,18 @@ cc-switch view work
 cc-switch edit work
 
 # 删除不用的配置
-cc-switch delete old-config
+cc-switch rm old-config
+
+# 删除当前配置并进入空配置模式
+cc-switch rm --current
+
+# 交互式删除
+cc-switch rm -i
+
+# 模板管理
+cc-switch view -t default
+cc-switch cp -t default my-template
+cc-switch edit -t my-template
 ```
 
 ### 工作原理
@@ -607,6 +813,9 @@ cc-switch delete old-config
 │   ├── default.json       # 默认配置
 │   ├── work.json          # 工作配置
 │   ├── personal.json      # 个人配置
+│   ├── templates/         # 配置模板
+│   │   ├── default.json   # 默认模板（不能删除）
+│   │   └── company.json   # 自定义公司模板
 │   └── .empty_backup_settings.json  # 空配置模式下的备份
 ├── .current              # 当前配置标记文件
 └── .empty_mode           # 空配置模式状态文件（空配置模式下存在）
@@ -644,22 +853,63 @@ cc-switch edit <名称>
 |------|------|
 | `init` | 通过交互式设置初始化 Claude Code 配置 |
 | `list` | 列出所有可用配置 |
-| `new <名称>` | 创建新配置 |
+| `list -t, --template` | 列出所有可用模板 |
+| `new <名称>` | 从默认模板创建新配置 |
+| `new <名称> -t <模板>` | 从指定模板创建新配置 |
+| `new <名称> -i, --interactive` | 使用交互式模板填写创建配置 |
 | `use <名称>` | 切换到配置 |
+| `use <名称> -l, --launch` | 切换到配置并启动 Claude Code CLI |
 | `use -p, --previous` | 切换到上一个配置 |
 | `use -e, --empty` | 进入空配置模式（禁用配置） |
 | `use --restore` | 从空配置模式恢复到上一个配置 |
 | `use -i, --interactive` | 进入交互选择模式 |
 | `cp <源> <目标>` | 复制配置 |
+| `cp -t <源> <目标>` | 复制模板 |
 | `mv <旧> <新>` | 移动（重命名）配置 |
-| `delete <名称>` | 删除配置 |
+| `mv -t <旧> <新>` | 移动（重命名）模板 |
+| `rm <名称>` | 删除配置 |
+| `rm -c, --current` | 删除当前配置并进入空配置模式 |
+| `rm -a, --all` | 删除所有配置（需要手动确认） |
+| `rm -t <模板>` | 删除模板 |
 | `export [配置]` | 将配置导出到备份文件 |
 | `import <文件>` | 从备份文件导入配置 |
 | `test [配置]` | 测试配置 API 连接性 |
 | `web` | 启动 Web 界面 |
 | `current` | 显示当前配置或空配置模式状态 |
 | `view <名称>` | 查看配置详情 |
+| `view -t <模板>` | 查看模板详情 |
 | `edit <名称>` | 在文本编辑器中编辑配置 |
+| `edit -t <模板>` | 在文本编辑器中编辑模板 |
+
+### 模板系统
+
+模板系统允许您创建标准化的配置结构，确保不同环境之间的一致设置。
+
+#### 什么是模板？
+
+模板是预配置的 JSON 结构，用作创建新配置的蓝图。它们可以包括：
+
+- **标准设置**：适用于各种环境的常见 Claude Code 设置
+- **占位符字段**：可在配置创建过程中交互式填写的字段
+- **环境特定值**：可为不同使用情况定制的默认值
+
+#### 模板功能
+
+- **默认模板**：内置模板，不能删除，提供基本结构
+- **自定义模板**：创建适合特定需求的模板（公司、项目等）
+- **交互式创建**：在配置创建过程中通过引导提示填写模板字段
+- **模板管理**：像配置一样复制、编辑、查看和组织模板
+
+#### 使用模板
+
+1. **列出模板**：`cc-switch list -t` 查看可用模板
+2. **从模板创建**：`cc-switch new myconfig -t mytemplate` 使用特定模板
+3. **交互模式**：`cc-switch new myconfig -i` 进行引导式模板字段输入
+4. **模板管理**：使用带 `-t` 标志的标准操作（cp、mv、edit、view）
+
+#### 模板结构
+
+模板使用与配置相同的 JSON 结构，但可能包含在交互式创建期间填写的特殊占位符值。
 
 ### 空配置模式功能
 
