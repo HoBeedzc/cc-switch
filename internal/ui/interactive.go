@@ -248,6 +248,107 @@ func (ui *interactiveUI) GetInput(prompt string, defaultValue string) (string, e
 	return strings.TrimSpace(result), nil
 }
 
+// Template field input operations
+
+// GetTemplateFieldInput prompts for template field input using promptui
+func (ui *interactiveUI) GetTemplateFieldInput(field config.TemplateField) (string, error) {
+	// Build label with description and required indicator
+	label := field.Description
+	if field.Required {
+		label += " (required)"
+	}
+	
+	promptUI := promptui.Prompt{
+		Label: label,
+	}
+	
+	// Add validation for required fields and field-specific validation
+	promptUI.Validate = func(input string) error {
+		input = strings.TrimSpace(input)
+		
+		// Check required fields
+		if field.Required && input == "" {
+			return fmt.Errorf("this field is required and cannot be empty")
+		}
+		
+		// Apply field-specific validation
+		return validateFieldValueUI(field.Name, input)
+	}
+	
+	result, err := promptUI.Run()
+	if err != nil {
+		return "", fmt.Errorf("failed to get input for field '%s': %w", field.Name, err)
+	}
+	
+	return strings.TrimSpace(result), nil
+}
+
+// validateFieldValueUI performs client-side validation
+func validateFieldValueUI(fieldName, value string) error {
+	if value == "" {
+		return nil // Empty values handled by required field check
+	}
+	
+	switch fieldName {
+	case "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "API_KEY", "TOKEN":
+		if len(value) < 10 {
+			return fmt.Errorf("API token appears to be too short (minimum 10 characters)")
+		}
+		if strings.Contains(value, " ") {
+			return fmt.Errorf("API token should not contain spaces")
+		}
+	case "ANTHROPIC_BASE_URL", "BASE_URL", "ENDPOINT":
+		if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+			return fmt.Errorf("URL must start with http:// or https://")
+		}
+		if strings.Contains(value, " ") {
+			return fmt.Errorf("URL should not contain spaces")
+		}
+	}
+	
+	return nil
+}
+
+// ConfirmTemplateCreation asks for confirmation with enhanced display
+func (ui *interactiveUI) ConfirmTemplateCreation(fields []config.TemplateField) bool {
+	prompt := promptui.Prompt{
+		Label:     "Continue with interactive template field input?",
+		IsConfirm: true,
+		Default:   "y",
+	}
+	
+	result, err := prompt.Run()
+	if err != nil {
+		return false
+	}
+	
+	result = strings.ToLower(strings.TrimSpace(result))
+	return result == "y" || result == "yes" || result == "true"
+}
+
+// ShowTemplateFieldSummary shows an enhanced summary using colors and formatting
+func (ui *interactiveUI) ShowTemplateFieldSummary(fields []config.TemplateField) {
+	if len(fields) == 0 {
+		return
+	}
+	
+	color.Cyan("📝 Template Configuration Summary")
+	fmt.Printf("Template has %d empty field(s) that need to be filled:\n\n", len(fields))
+	
+	for _, field := range fields {
+		if field.Required {
+			color.Yellow("  📋 %s", field.Name)
+			color.Red("      • Required field")
+		} else {
+			color.White("  📋 %s", field.Name)
+			color.Green("      • Optional field")
+		}
+		color.Cyan("      • %s", field.Description)
+		fmt.Println()
+	}
+	fmt.Println()
+}
+
 // GetFieldInput prompts for field-specific input
 func (ui *interactiveUI) GetFieldInput(fieldName string, currentValue interface{}) (interface{}, error) {
 	// Display current value

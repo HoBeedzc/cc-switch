@@ -36,6 +36,11 @@ type UIProvider interface {
 	// Input operations
 	GetInput(prompt string, defaultValue string) (string, error)
 
+	// Template field input operations
+	GetTemplateFieldInput(field config.TemplateField) (string, error)
+	ConfirmTemplateCreation(fields []config.TemplateField) bool
+	ShowTemplateFieldSummary(fields []config.TemplateField)
+
 	// Init-specific operations
 	GetInitInput(fieldName, description string) (string, error)
 	ShowInitWelcome()

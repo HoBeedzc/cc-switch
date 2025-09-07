@@ -4,12 +4,16 @@ import (
 	"fmt"
 
 	"cc-switch/internal/config"
+	"cc-switch/internal/ui"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-var newTemplate string
+var (
+	newTemplate     string
+	newInteractive  bool
+)
 
 var newCmd = &cobra.Command{
 	Use:   "new <name>",
@@ -19,7 +23,9 @@ var newCmd = &cobra.Command{
 You can specify a template to use when creating the configuration:
 - Default template: cc-switch new <name>
 - Specific template: cc-switch new <name> -t <template> or cc-switch new <name> --template <template>
+- Interactive mode: cc-switch new <name> -i or cc-switch new <name> --interactive
 
+In interactive mode, cc-switch will prompt you to fill in any empty fields in the template.
 If the specified template does not exist, the default template will be used.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) < 1 {
@@ -61,19 +67,46 @@ If the specified template does not exist, the default template will be used.`,
 			}
 		}
 
-		// 从模板创建新配置
-		if err := cm.CreateProfileFromTemplate(name, templateName); err != nil {
-			return err
+		// 根据是否启用交互模式选择创建方法
+		if newInteractive {
+			// 初始化UI提供者
+			var uiProvider ui.UIProvider
+			if isInteractiveMode() {
+				uiProvider = ui.NewInteractiveUI()
+			} else {
+				uiProvider = ui.NewCLIUI()
+			}
+
+			// 使用交互式创建
+			if err := cm.CreateProfileFromTemplateInteractive(name, templateName, uiProvider); err != nil {
+				return err
+			}
+		} else {
+			// 使用传统创建方法
+			if err := cm.CreateProfileFromTemplate(name, templateName); err != nil {
+				return err
+			}
 		}
 
 		color.Green("✓ Configuration '%s' created successfully from template '%s'", name, templateName)
-		fmt.Printf("Use 'cc-switch edit %s' to customize the configuration.\n", name)
+		if newInteractive {
+			fmt.Printf("All template fields have been filled with your input.\n")
+		} else {
+			fmt.Printf("Use 'cc-switch edit %s' to customize the configuration.\n", name)
+		}
 		fmt.Printf("Use 'cc-switch use %s' to switch to this configuration.\n", name)
 
 		return nil
 	},
 }
 
+// isInteractiveMode checks if we should use interactive UI
+func isInteractiveMode() bool {
+	// Check if we're in a TTY and interactive flag is set
+	return newInteractive
+}
+
 func init() {
 	newCmd.Flags().StringVarP(&newTemplate, "template", "t", "", "Template to use for new configuration (default: default)")
+	newCmd.Flags().BoolVarP(&newInteractive, "interactive", "i", false, "Interactive template field input mode")
 }

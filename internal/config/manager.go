@@ -74,6 +74,20 @@ type EmptyModeInfo struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
+// TemplateField 模板字段信息
+type TemplateField struct {
+	Path        string `json:"path"`        // 字段路径，如 "env.ANTHROPIC_AUTH_TOKEN"
+	Name        string `json:"name"`        // 字段名称，如 "ANTHROPIC_AUTH_TOKEN"
+	Description string `json:"description"` // 用户友好的描述
+	Required    bool   `json:"required"`    // 是否必填
+}
+
+// TemplateFieldInput 模板字段输入结果
+type TemplateFieldInput struct {
+	Field TemplateField `json:"field"`
+	Value string        `json:"value"`
+}
+
 // NewConfigManager 创建新的配置管理器
 func NewConfigManager() (*ConfigManager, error) {
 	cm, err := NewConfigManagerNoInit()
@@ -201,6 +215,88 @@ func (cm *ConfigManager) ListProfiles() ([]Profile, error) {
 // CreateProfile 创建新配置（从模板）
 func (cm *ConfigManager) CreateProfile(name string) error {
 	return cm.CreateProfileFromTemplate(name, "default")
+}
+
+// CreateProfileFromTemplateInteractive 从模板交互式创建配置
+func (cm *ConfigManager) CreateProfileFromTemplateInteractive(name, templateName string, uiProvider interface{}) error {
+	// 验证配置名称
+	if err := cm.validateProfileName(name); err != nil {
+		return err
+	}
+
+	// 检查配置是否已存在
+	profilePath := filepath.Join(cm.profilesDir, name+".json")
+	if _, err := os.Stat(profilePath); err == nil {
+		return fmt.Errorf("profile '%s' already exists", name)
+	}
+
+	// 检查模板是否存在
+	templatePath := filepath.Join(cm.templatesDir, templateName+".json")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		return fmt.Errorf("template '%s' does not exist", templateName)
+	}
+
+	// 读取模板内容
+	template, err := cm.GetTemplateContent(templateName)
+	if err != nil {
+		return fmt.Errorf("failed to read template: %w", err)
+	}
+
+	// 检测空字段
+	emptyFields := cm.DetectEmptyFields(template)
+	if len(emptyFields) == 0 {
+		// 没有空字段，直接使用现有方法
+		return cm.CreateProfileFromTemplate(name, templateName)
+	}
+
+	// 尝试类型断言，获取 UI 提供者
+	ui, ok := uiProvider.(interface {
+		ConfirmTemplateCreation(fields []TemplateField) bool
+		GetTemplateFieldInput(field TemplateField) (string, error)
+		ShowTemplateFieldSummary(fields []TemplateField)
+	})
+	if !ok {
+		// UI 不支持交互式模板输入，回退到非交互模式
+		return cm.CreateProfileFromTemplate(name, templateName)
+	}
+
+	// 显示将要填充的字段摘要
+	ui.ShowTemplateFieldSummary(emptyFields)
+
+	// 确认是否继续交互式创建
+	if !ui.ConfirmTemplateCreation(emptyFields) {
+		return fmt.Errorf("template creation cancelled by user")
+	}
+
+	// 收集用户输入
+	inputs := make(map[string]string)
+	for _, field := range emptyFields {
+		for {
+			value, err := ui.GetTemplateFieldInput(field)
+			if err != nil {
+				return fmt.Errorf("failed to get input for field '%s': %w", field.Name, err)
+			}
+			
+			// 验证必填字段
+			if field.Required && value == "" {
+				return fmt.Errorf("field '%s' is required and cannot be empty", field.Name)
+			}
+			
+			// 验证字段值格式
+			if err := validateFieldValue(field.Name, value); err != nil {
+				fmt.Printf("Validation error: %v\n", err)
+				fmt.Println("Please try again.")
+				continue // Retry input
+			}
+			
+			inputs[field.Path] = value
+			break // Valid input, move to next field
+		}
+	}
+
+	// 填充模板并创建配置
+	populatedTemplate := cm.PopulateTemplate(template, inputs)
+	return cm.CreateProfileWithContent(name, populatedTemplate)
 }
 
 // CreateProfileFromTemplate 从指定模板创建新配置
@@ -756,7 +852,214 @@ func (cm *ConfigManager) cleanupHistory() error {
 	return cm.saveHistory(history)
 }
 
-// Template Management Methods
+// Template Field Detection and Processing
+
+// FieldValidator defines a validation function for field values
+type FieldValidator func(value string) error
+
+// getFieldValidators returns validators for specific fields
+func getFieldValidators() map[string]FieldValidator {
+	return map[string]FieldValidator{
+		"ANTHROPIC_AUTH_TOKEN": validateAPIToken,
+		"OPENAI_API_KEY":       validateAPIToken,
+		"API_KEY":              validateAPIToken,
+		"TOKEN":                validateAPIToken,
+		"ANTHROPIC_BASE_URL":   validateURL,
+		"BASE_URL":             validateURL,
+		"ENDPOINT":             validateURL,
+	}
+}
+
+// validateAPIToken validates API token format
+func validateAPIToken(value string) error {
+	if value == "" {
+		return nil // Empty values are allowed for optional fields
+	}
+	
+	if len(value) < 10 {
+		return fmt.Errorf("API token appears to be too short (minimum 10 characters)")
+	}
+	
+	// Check for common API token patterns
+	if strings.HasPrefix(value, "sk-") || strings.HasPrefix(value, "sk-ant-") {
+		return nil // Valid token patterns
+	}
+	
+	// For other tokens, just check it's not obviously invalid
+	if strings.Contains(value, " ") {
+		return fmt.Errorf("API token should not contain spaces")
+	}
+	
+	return nil
+}
+
+// validateURL validates URL format
+func validateURL(value string) error {
+	if value == "" {
+		return nil // Empty values are allowed for optional fields
+	}
+	
+	// Basic URL validation
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		return fmt.Errorf("URL must start with http:// or https://")
+	}
+	
+	if strings.Contains(value, " ") {
+		return fmt.Errorf("URL should not contain spaces")
+	}
+	
+	return nil
+}
+
+// getFieldDescription 获取字段的用户友好描述
+func getFieldDescription(fieldName string) string {
+	descriptions := map[string]string{
+		"ANTHROPIC_AUTH_TOKEN": "Enter your Claude API token",
+		"ANTHROPIC_BASE_URL":   "Enter custom base URL (optional)",
+		"OPENAI_API_KEY":       "Enter your OpenAI API key",
+		"API_KEY":              "Enter your API key",
+		"BASE_URL":             "Enter base URL (optional)",
+		"TOKEN":                "Enter authentication token",
+		"SECRET":               "Enter secret key",
+		"ENDPOINT":             "Enter API endpoint URL",
+	}
+	
+	if desc, exists := descriptions[fieldName]; exists {
+		return desc
+	}
+	
+	// Generate generic description from field name
+	return fmt.Sprintf("Enter value for %s", fieldName)
+}
+
+// isFieldRequired 判断字段是否必填
+func isFieldRequired(fieldName string) bool {
+	requiredFields := map[string]bool{
+		"ANTHROPIC_AUTH_TOKEN": true,
+		"OPENAI_API_KEY":       true,
+		"API_KEY":              true,
+		"TOKEN":                true,
+	}
+	
+	return requiredFields[fieldName]
+}
+
+// validateFieldValue 验证字段值
+func validateFieldValue(fieldName, value string) error {
+	validators := getFieldValidators()
+	if validator, exists := validators[fieldName]; exists {
+		return validator(value)
+	}
+	return nil
+}
+
+// DetectEmptyFields 检测模板中的空字符串字段
+func (cm *ConfigManager) DetectEmptyFields(content map[string]interface{}) []TemplateField {
+	var fields []TemplateField
+	cm.detectEmptyFieldsRecursive(content, "", &fields)
+	return fields
+}
+
+// detectEmptyFieldsRecursive 递归检测空字段
+func (cm *ConfigManager) detectEmptyFieldsRecursive(content map[string]interface{}, pathPrefix string, fields *[]TemplateField) {
+	for key, value := range content {
+		currentPath := key
+		if pathPrefix != "" {
+			currentPath = pathPrefix + "." + key
+		}
+		
+		switch v := value.(type) {
+		case string:
+			// 检测空字符串
+			if v == "" {
+				field := TemplateField{
+					Path:        currentPath,
+					Name:        key,
+					Description: getFieldDescription(key),
+					Required:    isFieldRequired(key),
+				}
+				*fields = append(*fields, field)
+			}
+		case map[string]interface{}:
+			// 递归处理嵌套对象（跳过空对象）
+			if len(v) > 0 {
+				cm.detectEmptyFieldsRecursive(v, currentPath, fields)
+			}
+		// 跳过其他类型：arrays, numbers, booleans 等
+		}
+	}
+}
+
+// PopulateTemplate 根据用户输入填充模板
+func (cm *ConfigManager) PopulateTemplate(content map[string]interface{}, inputs map[string]string) map[string]interface{} {
+	// 深拷贝模板内容
+	result := cm.deepCopyMap(content)
+	
+	// 填充用户输入
+	for path, value := range inputs {
+		cm.setNestedValue(result, path, value)
+	}
+	
+	return result
+}
+
+// deepCopyMap 深拷贝 map
+func (cm *ConfigManager) deepCopyMap(original map[string]interface{}) map[string]interface{} {
+	copy := make(map[string]interface{})
+	for key, value := range original {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			copy[key] = cm.deepCopyMap(v)
+		case []interface{}:
+			copy[key] = cm.deepCopySlice(v)
+		default:
+			copy[key] = v
+		}
+	}
+	return copy
+}
+
+// deepCopySlice 深拷贝 slice
+func (cm *ConfigManager) deepCopySlice(original []interface{}) []interface{} {
+	copy := make([]interface{}, len(original))
+	for i, value := range original {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			copy[i] = cm.deepCopyMap(v)
+		case []interface{}:
+			copy[i] = cm.deepCopySlice(v)
+		default:
+			copy[i] = v
+		}
+	}
+	return copy
+}
+
+// setNestedValue 设置嵌套路径的值
+func (cm *ConfigManager) setNestedValue(content map[string]interface{}, path string, value string) {
+	parts := strings.Split(path, ".")
+	current := content
+	
+	// 导航到目标位置
+	for i, part := range parts[:len(parts)-1] {
+		if _, exists := current[part]; !exists {
+			current[part] = make(map[string]interface{})
+		}
+		
+		if nested, ok := current[part].(map[string]interface{}); ok {
+			current = nested
+		} else {
+			// 路径冲突，无法设置值
+			fmt.Fprintf(os.Stderr, "Warning: cannot set value at path '%s', path conflict at '%s'\n", 
+				path, strings.Join(parts[:i+1], "."))
+			return
+		}
+	}
+	
+	// 设置最终值
+	finalKey := parts[len(parts)-1]
+	current[finalKey] = value
+}
 
 // initializeDefaultTemplate 初始化默认模板
 func (cm *ConfigManager) initializeDefaultTemplate() error {
