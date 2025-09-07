@@ -86,6 +86,53 @@ func (ui *cliUI) GetInput(prompt string, defaultValue string) (string, error) {
 	return input, nil
 }
 
+// Template field input operations
+
+// GetTemplateFieldInput prompts for template field input
+func (ui *cliUI) GetTemplateFieldInput(field config.TemplateField) (string, error) {
+	// Format the prompt
+	prompt := field.Description
+	if field.Required {
+		prompt += " (required)"
+	}
+	
+	fmt.Printf("%s: ", prompt)
+	
+	var input string
+	fmt.Scanln(&input)
+	
+	input = strings.TrimSpace(input)
+	
+	// For required fields, validate non-empty input
+	if field.Required && input == "" {
+		return "", fmt.Errorf("field '%s' is required and cannot be empty", field.Name)
+	}
+	
+	return input, nil
+}
+
+// ConfirmTemplateCreation asks for confirmation before creating template with empty fields
+func (ui *cliUI) ConfirmTemplateCreation(fields []config.TemplateField) bool {
+	return ui.ConfirmAction("Continue with interactive template field input?", true)
+}
+
+// ShowTemplateFieldSummary shows summary of fields that need to be filled
+func (ui *cliUI) ShowTemplateFieldSummary(fields []config.TemplateField) {
+	if len(fields) == 0 {
+		return
+	}
+	
+	fmt.Printf("Template has %d empty field(s) that need to be filled:\n", len(fields))
+	for _, field := range fields {
+		if field.Required {
+			color.Yellow("  • %s (required)", field.Name)
+		} else {
+			color.White("  • %s (optional)", field.Name)
+		}
+	}
+	fmt.Println()
+}
+
 // Init-specific operations
 
 // GetInitInput prompts for initialization input with special handling for empty values
