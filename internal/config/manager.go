@@ -951,6 +951,61 @@ func (cm *ConfigManager) DeleteTemplate(name string) error {
 	return nil
 }
 
+// CopyTemplate 复制模板
+func (cm *ConfigManager) CopyTemplate(sourceName, destName string) error {
+	// 验证源模板存在
+	if !cm.TemplateExists(sourceName) {
+		return fmt.Errorf("source template '%s' does not exist", sourceName)
+	}
+
+	// 验证目标模板不存在
+	if cm.TemplateExists(destName) {
+		return fmt.Errorf("destination template '%s' already exists", destName)
+	}
+
+	// 获取源模板内容
+	content, err := cm.GetTemplateContent(sourceName)
+	if err != nil {
+		return fmt.Errorf("failed to read source template: %w", err)
+	}
+
+	// 创建目标模板
+	destPath := filepath.Join(cm.templatesDir, destName+".json")
+	if err := cm.writeConfigFile(destPath, content); err != nil {
+		return fmt.Errorf("failed to create destination template: %w", err)
+	}
+
+	return nil
+}
+
+// MoveTemplate 移动（重命名）模板
+func (cm *ConfigManager) MoveTemplate(oldName, newName string) error {
+	// 验证源模板存在
+	if !cm.TemplateExists(oldName) {
+		return fmt.Errorf("template '%s' does not exist", oldName)
+	}
+
+	// 验证目标模板不存在
+	if cm.TemplateExists(newName) {
+		return fmt.Errorf("template '%s' already exists", newName)
+	}
+
+	// 防止删除默认模板
+	if oldName == "default" {
+		return fmt.Errorf("cannot move the default template")
+	}
+
+	// 执行重命名
+	oldPath := filepath.Join(cm.templatesDir, oldName+".json")
+	newPath := filepath.Join(cm.templatesDir, newName+".json")
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("failed to move template: %w", err)
+	}
+
+	return nil
+}
+
 // validateTemplateContent 验证模板内容
 func (cm *ConfigManager) validateTemplateContent(content map[string]interface{}) error {
 	// 基本JSON格式验证（通过能够unmarshal已经验证）

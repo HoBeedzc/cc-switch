@@ -326,7 +326,7 @@ func launchClaudeCode(uiProvider ui.UIProvider) error {
 	// Try to find Claude Code CLI executable
 	claudePath, err := findClaudeCodeExecutable()
 	if err != nil {
-		return fmt.Errorf("Claude Code CLI not found: %w", err)
+		return fmt.Errorf("claude Code CLI not found: %w", err)
 	}
 
 	uiProvider.ShowInfo("Starting Claude Code CLI in current terminal... (Press Ctrl+C or type 'exit' to return)")
@@ -353,7 +353,7 @@ func launchClaudeCode(uiProvider ui.UIProvider) error {
 				return nil
 			}
 		}
-		return fmt.Errorf("Claude Code exited with error: %w", err)
+		return fmt.Errorf("claude Code exited with error: %w", err)
 	}
 
 	// This line will execute after Claude Code exits normally
@@ -380,7 +380,7 @@ func findClaudeCodeExecutable() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("Claude Code CLI executable not found in PATH. Please install Claude Code CLI or ensure 'claude' command is available")
+	return "", fmt.Errorf("claude Code CLI executable not found in PATH. Please install Claude Code CLI or ensure 'claude' command is available")
 }
 
 // isClaudeCodeCLI verifies that the given executable is actually Claude Code CLI

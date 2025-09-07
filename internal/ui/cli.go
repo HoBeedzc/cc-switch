@@ -178,3 +178,33 @@ func (ui *cliUI) DisplayConfiguration(view *handler.ConfigView, raw bool) error 
 
 	return nil
 }
+
+// DisplayTemplate displays template content
+func (ui *cliUI) DisplayTemplate(view *handler.TemplateView, raw bool) error {
+	if raw {
+		// Raw JSON output
+		jsonData, err := json.MarshalIndent(view.Content, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to format JSON: %w", err)
+		}
+		fmt.Println(string(jsonData))
+	} else {
+		// Formatted output
+		color.Blue("Template: %s", view.Name)
+		if view.Name == "default" {
+			color.Green("Type: System Default")
+		} else {
+			color.White("Type: Custom Template")
+		}
+		fmt.Printf("Path: %s\n\n", view.Path)
+
+		color.Yellow("Content:")
+		jsonData, err := json.MarshalIndent(view.Content, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to format JSON: %w", err)
+		}
+		fmt.Println(string(jsonData))
+	}
+
+	return nil
+}
