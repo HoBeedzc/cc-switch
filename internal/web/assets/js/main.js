@@ -2,6 +2,7 @@ class CCSwitch {
     constructor() {
         this.currentProfile = null;
         this.profiles = [];
+        this.templates = [];
         this.isEmptyMode = false;
         this.init();
     }
@@ -51,6 +52,9 @@ class CCSwitch {
             case 'profiles':
                 this.renderProfiles();
                 break;
+            case 'templates':
+                this.renderTemplates();
+                break;
             case 'settings':
                 this.renderSettings();
                 break;
@@ -64,6 +68,9 @@ class CCSwitch {
         try {
             // Load profiles
             await this.loadProfiles();
+            
+            // Load templates
+            await this.loadTemplates();
             
             // Load current configuration
             await this.loadCurrentConfig();
@@ -103,6 +110,17 @@ class CCSwitch {
             console.log('Health status:', response.data);
         } catch (error) {
             console.error('Failed to load health status:', error);
+        }
+    }
+
+    async loadTemplates() {
+        try {
+            const response = await this.apiCall('/api/templates');
+            this.templates = response.data.templates || [];
+            console.log('Loaded templates:', this.templates);
+        } catch (error) {
+            console.error('Failed to load templates:', error);
+            this.templates = [];
         }
     }
 
@@ -204,6 +222,73 @@ class CCSwitch {
             <div id="test-results" style="display: none;">
                 <h3>Test Results</h3>
                 <div id="test-results-content"></div>
+            </div>
+        `;
+    }
+
+    renderTemplates() {
+        const container = document.getElementById('templates-list');
+        if (!container) return;
+
+        if (this.templates.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <h3>No templates found</h3>
+                    <p>Create your first template to get started.</p>
+                    <button class="btn btn-primary mt-4" onclick="app.createTemplate()">
+                        Create Template
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        const templatesHTML = this.templates.map(template => {
+            const isDefault = template === 'default';
+            return `
+                <div class="config-card">
+                    <div class="config-header">
+                        <div>
+                            <h3>${this.escapeHtml(template)}${isDefault ? ' <span class="badge">System Default</span>' : ''}</h3>
+                        </div>
+                        <div class="config-actions">
+                            <button class="btn btn-sm btn-secondary" onclick="app.viewTemplate('${this.escapeHtml(template)}')" title="View Template">
+                                View
+                            </button>
+                            ${!isDefault ? `
+                                <button class="btn btn-sm btn-secondary" onclick="app.editTemplate('${this.escapeHtml(template)}')" title="Edit Template">
+                                    Edit
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="app.copyTemplate('${this.escapeHtml(template)}')" title="Copy Template">
+                                    Copy
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="app.renameTemplate('${this.escapeHtml(template)}')" title="Rename Template">
+                                    Rename
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="app.deleteTemplate('${this.escapeHtml(template)}')" title="Delete Template">
+                                    Delete
+                                </button>
+                            ` : ''}
+                            <button class="btn btn-sm btn-primary" onclick="app.createProfileFromTemplate('${this.escapeHtml(template)}')" title="Create Configuration from Template">
+                                Create Config
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = `
+            <div class="section-actions">
+                <button class="btn btn-primary" onclick="app.createTemplate()">
+                    <span class="icon">+</span> Create Template
+                </button>
+                <button class="btn btn-secondary" onclick="app.loadTemplates(); app.renderTemplates();">
+                    <span class="icon">↻</span> Refresh
+                </button>
+            </div>
+            <div class="config-list">
+                ${templatesHTML}
             </div>
         `;
     }
@@ -679,7 +764,7 @@ class CCSwitch {
     }
 
     showCreateModal() {
-        const templates = ['default']; // Could be fetched from API
+        const templates = this.templates.length > 0 ? this.templates : ['default'];
         
         const content = `
             <form id="create-profile-form">
@@ -960,6 +1045,216 @@ class CCSwitch {
         if (validationDiv) {
             validationDiv.style.display = 'none';
             validationDiv.innerHTML = '';
+        }
+    }
+
+    // Template Management Functions
+    
+    validateTemplateName(name) {
+        if (!name) {
+            return "Template name cannot be empty";
+        }
+        
+        if (name.length > 255) {
+            return "Template name must be 255 characters or less";
+        }
+        
+        // Check for forbidden characters
+        const forbidden = /[\/\\\.\.]/;
+        if (forbidden.test(name)) {
+            return "Template name contains forbidden characters (/, \\, ..)";
+        }
+        
+        // Check for valid characters only
+        const validName = /^[a-zA-Z0-9_-]+$/;
+        if (!validName.test(name)) {
+            return "Template name can only contain letters, numbers, hyphens, and underscores";
+        }
+        
+        // Check for reserved names
+        if (name === 'default') {
+            return "Cannot use reserved name 'default'";
+        }
+        
+        return null; // Valid
+    }
+    
+    async createTemplate() {
+        const templateName = prompt('Enter template name:');
+        if (!templateName) return;
+        
+        // Validate template name
+        const validationError = this.validateTemplateName(templateName);
+        if (validationError) {
+            this.showError(validationError);
+            return;
+        }
+
+        try {
+            await this.apiCall('/api/templates', {
+                method: 'POST',
+                body: JSON.stringify({ name: templateName })
+            });
+            
+            this.showSuccess(`Template '${templateName}' created successfully`);
+            await this.loadTemplates();
+            this.renderTemplates();
+        } catch (error) {
+            this.showError(`Failed to create template: ${error.message}`);
+        }
+    }
+
+    async viewTemplate(templateName) {
+        try {
+            const response = await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}`);
+            const template = response.data;
+            
+            this.showModal('View Template', `
+                <div class="template-view">
+                    <h3>Template: ${this.escapeHtml(templateName)}</h3>
+                    <p><strong>Path:</strong> ${this.escapeHtml(template.path)}</p>
+                    <div class="form-group">
+                        <label class="form-label">Content</label>
+                        <pre class="json-display">${this.syntaxHighlight(JSON.stringify(template.content, null, 2))}</pre>
+                    </div>
+                </div>
+            `, 'Close', null);
+        } catch (error) {
+            this.showError(`Failed to view template: ${error.message}`);
+        }
+    }
+
+    async editTemplate(templateName) {
+        try {
+            const response = await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}`);
+            const template = response.data;
+            
+            const content = `
+                <form id="edit-template-form">
+                    <div class="form-group">
+                        <label class="form-label">Template Name</label>
+                        <input type="text" value="${this.escapeHtml(templateName)}" disabled class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Template Content (JSON)</label>
+                        <textarea id="template-content" class="form-input" rows="15" style="font-family: monospace;">${JSON.stringify(template.content, null, 2)}</textarea>
+                    </div>
+                </form>
+            `;
+            
+            this.showModal(`Edit Template: ${templateName}`, content, 'Save', async () => {
+                const contentTextarea = document.getElementById('template-content');
+                try {
+                    const newContent = JSON.parse(contentTextarea.value);
+                    
+                    await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(newContent)
+                    });
+                    
+                    this.showSuccess(`Template '${templateName}' updated successfully`);
+                    await this.loadTemplates();
+                    this.renderTemplates();
+                    return true;
+                } catch (parseError) {
+                    this.showError(`Invalid JSON: ${parseError.message}`);
+                    return false;
+                } catch (error) {
+                    this.showError(`Failed to update template: ${error.message}`);
+                    return false;
+                }
+            });
+        } catch (error) {
+            this.showError(`Failed to load template for editing: ${error.message}`);
+        }
+    }
+
+    async copyTemplate(templateName) {
+        const newName = prompt(`Enter name for copy of '${templateName}':`);
+        if (!newName) return;
+        
+        // Validate template name
+        const validationError = this.validateTemplateName(newName);
+        if (validationError) {
+            this.showError(validationError);
+            return;
+        }
+
+        try {
+            await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}/copy`, {
+                method: 'POST',
+                body: JSON.stringify({ dest_name: newName })
+            });
+            
+            this.showSuccess(`Template '${templateName}' copied to '${newName}' successfully`);
+            await this.loadTemplates();
+            this.renderTemplates();
+        } catch (error) {
+            this.showError(`Failed to copy template: ${error.message}`);
+        }
+    }
+
+    async renameTemplate(templateName) {
+        const newName = prompt(`Enter new name for '${templateName}':`);
+        if (!newName) return;
+        
+        // Validate template name
+        const validationError = this.validateTemplateName(newName);
+        if (validationError) {
+            this.showError(validationError);
+            return;
+        }
+
+        try {
+            await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}/move`, {
+                method: 'POST',
+                body: JSON.stringify({ new_name: newName })
+            });
+            
+            this.showSuccess(`Template renamed from '${templateName}' to '${newName}' successfully`);
+            await this.loadTemplates();
+            this.renderTemplates();
+        } catch (error) {
+            this.showError(`Failed to rename template: ${error.message}`);
+        }
+    }
+
+    async deleteTemplate(templateName) {
+        if (!confirm(`Are you sure you want to delete template "${templateName}"?`)) {
+            return;
+        }
+
+        try {
+            await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}`, {
+                method: 'DELETE'
+            });
+            
+            this.showSuccess(`Template "${templateName}" deleted successfully`);
+            await this.loadTemplates();
+            this.renderTemplates();
+        } catch (error) {
+            this.showError(`Failed to delete template: ${error.message}`);
+        }
+    }
+
+    async createProfileFromTemplate(templateName) {
+        const profileName = prompt(`Enter name for new configuration from template '${templateName}':`);
+        if (!profileName) return;
+
+        try {
+            await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}/copy`, {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    dest_name: profileName,
+                    to_config: true 
+                })
+            });
+            
+            this.showSuccess(`Configuration '${profileName}' created from template '${templateName}' successfully`);
+            await this.loadData();
+            this.showSection('profiles');
+        } catch (error) {
+            this.showError(`Failed to create configuration from template: ${error.message}`);
         }
     }
 }
