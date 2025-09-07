@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	newTemplate     string
-	newInteractive  bool
+	newTemplate    string
+	newInteractive bool
 )
 
 var newCmd = &cobra.Command{

@@ -27,6 +27,7 @@ type ConfigHandler interface {
 	ListTemplates() ([]string, error)
 	CreateTemplate(name string) error
 	EditTemplate(name string, field string, useNano bool) error
+	UpdateTemplate(name string, content map[string]interface{}) error
 	DeleteTemplate(name string) error
 	ValidateTemplateExists(name string) error
 	CopyTemplate(sourceName, destName string) error

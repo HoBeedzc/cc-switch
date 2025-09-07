@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +15,30 @@ import (
 // APIHandler handles API requests
 type APIHandler struct {
 	handler handler.ConfigHandler
+}
+
+// validateTemplateName validates template names to prevent path traversal attacks
+func validateTemplateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("template name cannot be empty")
+	}
+
+	if len(name) > 255 {
+		return fmt.Errorf("template name must be 255 characters or less")
+	}
+
+	// Check for path traversal attempts
+	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("template name contains forbidden characters")
+	}
+
+	// Check for invalid characters
+	validName := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if !validName.MatchString(name) {
+		return fmt.Errorf("template name can only contain letters, numbers, hyphens, and underscores")
+	}
+
+	return nil
 }
 
 // APIResponse represents a standard API response
@@ -176,20 +201,74 @@ func (api *APIHandler) HandleTest(w http.ResponseWriter, r *http.Request) {
 
 // HandleTemplates handles /api/templates requests
 func (api *APIHandler) HandleTemplates(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		api.listTemplates(w, r)
+	case http.MethodPost:
+		api.createTemplate(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleTemplateRoutes handles all /api/templates/{path} requests with routing logic
+func (api *APIHandler) HandleTemplateRoutes(w http.ResponseWriter, r *http.Request) {
+	// Extract path after /api/templates/
+	path := strings.TrimPrefix(r.URL.Path, "/api/templates/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) == 0 || parts[0] == "" {
+		api.sendError(w, "Template name is required", http.StatusBadRequest)
+		return
+	}
+
+	templateName := parts[0]
+
+	// Validate template name to prevent path traversal
+	if err := validateTemplateName(templateName); err != nil {
+		api.sendError(w, fmt.Sprintf("Invalid template name: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if len(parts) == 1 {
+		// Simple template operations: /api/templates/{name}
+		api.handleSingleTemplate(w, r, templateName)
+	} else if len(parts) == 2 {
+		// Template operations: /api/templates/{name}/{operation}
+		operation := parts[1]
+		api.handleTemplateOperation(w, r, templateName, operation)
+	} else {
+		api.sendError(w, "Invalid template path", http.StatusBadRequest)
+	}
+}
+
+func (api *APIHandler) handleSingleTemplate(w http.ResponseWriter, r *http.Request, templateName string) {
+	switch r.Method {
+	case http.MethodGet:
+		api.getTemplate(w, r, templateName)
+	case http.MethodPut:
+		api.updateTemplate(w, r, templateName)
+	case http.MethodDelete:
+		api.deleteTemplate(w, r, templateName)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *APIHandler) handleTemplateOperation(w http.ResponseWriter, r *http.Request, templateName string, operation string) {
+	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	templates, err := api.handler.ListTemplates()
-	if err != nil {
-		api.sendError(w, fmt.Sprintf("Failed to list templates: %v", err), http.StatusInternalServerError)
-		return
+	switch operation {
+	case "copy":
+		api.copyTemplate(w, r, templateName)
+	case "move":
+		api.moveTemplate(w, r, templateName)
+	default:
+		api.sendError(w, fmt.Sprintf("Unknown operation: %s", operation), http.StatusBadRequest)
 	}
-
-	api.sendSuccess(w, map[string]interface{}{
-		"templates": templates,
-	})
 }
 
 // HandleHealth handles /api/health requests
@@ -427,4 +506,220 @@ func (api *APIHandler) sendJSON(w http.ResponseWriter, data interface{}, statusC
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(data)
+}
+
+// Template helper methods
+
+func (api *APIHandler) listTemplates(w http.ResponseWriter, r *http.Request) {
+	templates, err := api.handler.ListTemplates()
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to list templates: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	api.sendSuccess(w, map[string]interface{}{
+		"templates": templates,
+	})
+}
+
+func (api *APIHandler) createTemplate(w http.ResponseWriter, r *http.Request) {
+	// Limit request body size to 1MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	var request struct {
+		Name string `json:"name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate template name to prevent path traversal
+	if err := validateTemplateName(request.Name); err != nil {
+		api.sendError(w, fmt.Sprintf("Invalid template name: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Prevent creation of default template
+	if request.Name == "default" {
+		api.sendError(w, "Cannot create template with reserved name 'default'", http.StatusBadRequest)
+		return
+	}
+
+	// Check if template already exists
+	if err := api.handler.ValidateTemplateExists(request.Name); err == nil {
+		api.sendError(w, fmt.Sprintf("Template '%s' already exists", request.Name), http.StatusConflict)
+		return
+	}
+
+	if err := api.handler.CreateTemplate(request.Name); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to create template: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	api.sendSuccess(w, map[string]interface{}{
+		"message": fmt.Sprintf("Template '%s' created successfully", request.Name),
+		"name":    request.Name,
+	})
+}
+
+func (api *APIHandler) getTemplate(w http.ResponseWriter, r *http.Request, templateName string) {
+	view, err := api.handler.ViewTemplate(templateName, false)
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to get template: %v", err), http.StatusNotFound)
+		return
+	}
+
+	api.sendSuccess(w, view)
+}
+
+func (api *APIHandler) updateTemplate(w http.ResponseWriter, r *http.Request, templateName string) {
+	// Prevent modification of default template
+	if templateName == "default" {
+		api.sendError(w, "Cannot modify the default template", http.StatusForbidden)
+		return
+	}
+
+	// Limit request body size to 1MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	var completeConfig map[string]interface{}
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		api.sendError(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := json.Unmarshal(bodyBytes, &completeConfig); err != nil {
+		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate template exists before updating
+	if err := api.handler.ValidateTemplateExists(templateName); err != nil {
+		api.sendError(w, fmt.Sprintf("Template '%s' does not exist", templateName), http.StatusNotFound)
+		return
+	}
+
+	// Update template using the handler
+	if err := api.handler.UpdateTemplate(templateName, completeConfig); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to update template: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	api.sendSuccess(w, map[string]interface{}{
+		"message": fmt.Sprintf("Template '%s' updated successfully", templateName),
+		"name":    templateName,
+	})
+}
+
+func (api *APIHandler) deleteTemplate(w http.ResponseWriter, r *http.Request, templateName string) {
+	// Prevent deletion of default template
+	if templateName == "default" {
+		api.sendError(w, "Cannot delete the default template", http.StatusForbidden)
+		return
+	}
+
+	var request struct {
+		Force bool `json:"force"`
+	}
+
+	json.NewDecoder(r.Body).Decode(&request) // Ignore errors for optional body
+
+	if err := api.handler.DeleteTemplate(templateName); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to delete template: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	api.sendSuccess(w, map[string]interface{}{
+		"message": fmt.Sprintf("Template '%s' deleted successfully", templateName),
+		"name":    templateName,
+	})
+}
+
+func (api *APIHandler) copyTemplate(w http.ResponseWriter, r *http.Request, sourceName string) {
+	var request struct {
+		DestName string `json:"dest_name"`
+		ToConfig bool   `json:"to_config"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if request.DestName == "" {
+		api.sendError(w, "Destination name is required", http.StatusBadRequest)
+		return
+	}
+
+	if request.ToConfig {
+		// Create configuration from template
+		if err := api.handler.CreateConfig(request.DestName, sourceName); err != nil {
+			api.sendError(w, fmt.Sprintf("Failed to create configuration from template: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		api.sendSuccess(w, map[string]interface{}{
+			"message": fmt.Sprintf("Configuration '%s' created from template '%s' successfully", request.DestName, sourceName),
+			"name":    request.DestName,
+			"type":    "configuration",
+		})
+	} else {
+		// Copy template to template
+		if request.DestName == "default" {
+			api.sendError(w, "Cannot create template with reserved name 'default'", http.StatusBadRequest)
+			return
+		}
+
+		if err := api.handler.CopyTemplate(sourceName, request.DestName); err != nil {
+			api.sendError(w, fmt.Sprintf("Failed to copy template: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		api.sendSuccess(w, map[string]interface{}{
+			"message": fmt.Sprintf("Template '%s' copied to '%s' successfully", sourceName, request.DestName),
+			"name":    request.DestName,
+			"type":    "template",
+		})
+	}
+}
+
+func (api *APIHandler) moveTemplate(w http.ResponseWriter, r *http.Request, oldName string) {
+	// Prevent moving of default template
+	if oldName == "default" {
+		api.sendError(w, "Cannot move/rename the default template", http.StatusForbidden)
+		return
+	}
+
+	var request struct {
+		NewName string `json:"new_name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if request.NewName == "" {
+		api.sendError(w, "New template name is required", http.StatusBadRequest)
+		return
+	}
+
+	if request.NewName == "default" {
+		api.sendError(w, "Cannot rename template to reserved name 'default'", http.StatusBadRequest)
+		return
+	}
+
+	if err := api.handler.MoveTemplate(oldName, request.NewName); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to move template: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	api.sendSuccess(w, map[string]interface{}{
+		"message":  fmt.Sprintf("Template moved from '%s' to '%s' successfully", oldName, request.NewName),
+		"old_name": oldName,
+		"new_name": request.NewName,
+	})
 }

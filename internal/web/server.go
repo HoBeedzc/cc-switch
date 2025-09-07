@@ -42,6 +42,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/switch", api.HandleSwitch)
 	mux.HandleFunc("/api/test", api.HandleTest)
 	mux.HandleFunc("/api/templates", api.HandleTemplates)
+	mux.HandleFunc("/api/templates/", api.HandleTemplateRoutes)
 	mux.HandleFunc("/api/health", api.HandleHealth)
 
 	// Static file server
@@ -90,6 +91,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
             <div class="container">
                 <nav class="nav-tabs">
                     <button class="nav-tab active" data-section="profiles">Profiles</button>
+                    <button class="nav-tab" data-section="templates">Templates</button>
                     <button class="nav-tab" data-section="settings">Settings</button>
                     <button class="nav-tab" data-section="test">API Test</button>
                 </nav>
@@ -103,6 +105,20 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
                             <div class="loading">
                                 <div class="spinner"></div>
                                 Loading profiles...
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="templates-section" class="section">
+                    <div class="section-header">
+                        <h2>Template Management</h2>
+                    </div>
+                    <div class="section-content">
+                        <div id="templates-list">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Loading templates...
                             </div>
                         </div>
                     </div>

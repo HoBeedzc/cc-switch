@@ -95,19 +95,19 @@ func (ui *cliUI) GetTemplateFieldInput(field config.TemplateField) (string, erro
 	if field.Required {
 		prompt += " (required)"
 	}
-	
+
 	fmt.Printf("%s: ", prompt)
-	
+
 	var input string
 	fmt.Scanln(&input)
-	
+
 	input = strings.TrimSpace(input)
-	
+
 	// For required fields, validate non-empty input
 	if field.Required && input == "" {
 		return "", fmt.Errorf("field '%s' is required and cannot be empty", field.Name)
 	}
-	
+
 	return input, nil
 }
 
@@ -121,7 +121,7 @@ func (ui *cliUI) ShowTemplateFieldSummary(fields []config.TemplateField) {
 	if len(fields) == 0 {
 		return
 	}
-	
+
 	fmt.Printf("Template has %d empty field(s) that need to be filled:\n", len(fields))
 	for _, field := range fields {
 		if field.Required {

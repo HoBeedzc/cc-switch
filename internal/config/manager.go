@@ -276,19 +276,19 @@ func (cm *ConfigManager) CreateProfileFromTemplateInteractive(name, templateName
 			if err != nil {
 				return fmt.Errorf("failed to get input for field '%s': %w", field.Name, err)
 			}
-			
+
 			// 验证必填字段
 			if field.Required && value == "" {
 				return fmt.Errorf("field '%s' is required and cannot be empty", field.Name)
 			}
-			
+
 			// 验证字段值格式
 			if err := validateFieldValue(field.Name, value); err != nil {
 				fmt.Printf("Validation error: %v\n", err)
 				fmt.Println("Please try again.")
 				continue // Retry input
 			}
-			
+
 			inputs[field.Path] = value
 			break // Valid input, move to next field
 		}
@@ -875,21 +875,21 @@ func validateAPIToken(value string) error {
 	if value == "" {
 		return nil // Empty values are allowed for optional fields
 	}
-	
+
 	if len(value) < 10 {
 		return fmt.Errorf("API token appears to be too short (minimum 10 characters)")
 	}
-	
+
 	// Check for common API token patterns
 	if strings.HasPrefix(value, "sk-") || strings.HasPrefix(value, "sk-ant-") {
 		return nil // Valid token patterns
 	}
-	
+
 	// For other tokens, just check it's not obviously invalid
 	if strings.Contains(value, " ") {
 		return fmt.Errorf("API token should not contain spaces")
 	}
-	
+
 	return nil
 }
 
@@ -898,16 +898,16 @@ func validateURL(value string) error {
 	if value == "" {
 		return nil // Empty values are allowed for optional fields
 	}
-	
+
 	// Basic URL validation
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
 		return fmt.Errorf("URL must start with http:// or https://")
 	}
-	
+
 	if strings.Contains(value, " ") {
 		return fmt.Errorf("URL should not contain spaces")
 	}
-	
+
 	return nil
 }
 
@@ -923,11 +923,11 @@ func getFieldDescription(fieldName string) string {
 		"SECRET":               "Enter secret key",
 		"ENDPOINT":             "Enter API endpoint URL",
 	}
-	
+
 	if desc, exists := descriptions[fieldName]; exists {
 		return desc
 	}
-	
+
 	// Generate generic description from field name
 	return fmt.Sprintf("Enter value for %s", fieldName)
 }
@@ -940,7 +940,7 @@ func isFieldRequired(fieldName string) bool {
 		"API_KEY":              true,
 		"TOKEN":                true,
 	}
-	
+
 	return requiredFields[fieldName]
 }
 
@@ -967,7 +967,7 @@ func (cm *ConfigManager) detectEmptyFieldsRecursive(content map[string]interface
 		if pathPrefix != "" {
 			currentPath = pathPrefix + "." + key
 		}
-		
+
 		switch v := value.(type) {
 		case string:
 			// 检测空字符串
@@ -985,7 +985,7 @@ func (cm *ConfigManager) detectEmptyFieldsRecursive(content map[string]interface
 			if len(v) > 0 {
 				cm.detectEmptyFieldsRecursive(v, currentPath, fields)
 			}
-		// 跳过其他类型：arrays, numbers, booleans 等
+			// 跳过其他类型：arrays, numbers, booleans 等
 		}
 	}
 }
@@ -994,12 +994,12 @@ func (cm *ConfigManager) detectEmptyFieldsRecursive(content map[string]interface
 func (cm *ConfigManager) PopulateTemplate(content map[string]interface{}, inputs map[string]string) map[string]interface{} {
 	// 深拷贝模板内容
 	result := cm.deepCopyMap(content)
-	
+
 	// 填充用户输入
 	for path, value := range inputs {
 		cm.setNestedValue(result, path, value)
 	}
-	
+
 	return result
 }
 
@@ -1039,23 +1039,23 @@ func (cm *ConfigManager) deepCopySlice(original []interface{}) []interface{} {
 func (cm *ConfigManager) setNestedValue(content map[string]interface{}, path string, value string) {
 	parts := strings.Split(path, ".")
 	current := content
-	
+
 	// 导航到目标位置
 	for i, part := range parts[:len(parts)-1] {
 		if _, exists := current[part]; !exists {
 			current[part] = make(map[string]interface{})
 		}
-		
+
 		if nested, ok := current[part].(map[string]interface{}); ok {
 			current = nested
 		} else {
 			// 路径冲突，无法设置值
-			fmt.Fprintf(os.Stderr, "Warning: cannot set value at path '%s', path conflict at '%s'\n", 
+			fmt.Fprintf(os.Stderr, "Warning: cannot set value at path '%s', path conflict at '%s'\n",
 				path, strings.Join(parts[:i+1], "."))
 			return
 		}
 	}
-	
+
 	// 设置最终值
 	finalKey := parts[len(parts)-1]
 	current[finalKey] = value

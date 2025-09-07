@@ -508,6 +508,16 @@ func (h *configHandler) DeleteTemplate(name string) error {
 	return h.configManager.DeleteTemplate(name)
 }
 
+// UpdateTemplate updates a template with new content
+func (h *configHandler) UpdateTemplate(name string, content map[string]interface{}) error {
+	// Validate template exists
+	if err := h.ValidateTemplateExists(name); err != nil {
+		return err
+	}
+
+	return h.configManager.UpdateTemplate(name, content)
+}
+
 // CopyTemplate copies a template
 func (h *configHandler) CopyTemplate(sourceName, destName string) error {
 	return h.configManager.CopyTemplate(sourceName, destName)
