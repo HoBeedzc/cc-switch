@@ -50,6 +50,7 @@ type UIProvider interface {
 
 	// Configuration display
 	DisplayConfiguration(view *handler.ConfigView, raw bool) error
+	DisplayTemplate(view *handler.TemplateView, raw bool) error
 }
 
 // InteractiveUI defines additional interactive-specific operations

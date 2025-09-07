@@ -29,6 +29,9 @@ type ConfigHandler interface {
 	EditTemplate(name string, field string, useNano bool) error
 	DeleteTemplate(name string) error
 	ValidateTemplateExists(name string) error
+	CopyTemplate(sourceName, destName string) error
+	MoveTemplate(oldName, newName string) error
+	ViewTemplate(name string, raw bool) (*TemplateView, error)
 
 	// Init operations
 	InitializeConfig(authToken, baseURL string) error

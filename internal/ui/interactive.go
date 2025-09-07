@@ -328,6 +328,36 @@ func (ui *interactiveUI) DisplayConfiguration(view *handler.ConfigView, raw bool
 	return nil
 }
 
+// DisplayTemplate displays template content
+func (ui *interactiveUI) DisplayTemplate(view *handler.TemplateView, raw bool) error {
+	if raw {
+		// Raw JSON output
+		jsonData, err := json.MarshalIndent(view.Content, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to format JSON: %w", err)
+		}
+		fmt.Println(string(jsonData))
+	} else {
+		// Formatted output
+		color.Blue("Template: %s", view.Name)
+		if view.Name == "default" {
+			color.Green("Type: System Default")
+		} else {
+			fmt.Println("Type: Custom Template")
+		}
+		fmt.Printf("Path: %s\n\n", view.Path)
+
+		color.Yellow("Content:")
+		jsonData, err := json.MarshalIndent(view.Content, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to format JSON: %w", err)
+		}
+		fmt.Println(string(jsonData))
+	}
+
+	return nil
+}
+
 // Init-specific operations (reuse CLI implementation)
 
 // GetInitInput prompts for initialization input using promptui

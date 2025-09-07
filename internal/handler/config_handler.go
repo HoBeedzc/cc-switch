@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"cc-switch/internal/config"
@@ -505,6 +506,40 @@ func (h *configHandler) DeleteTemplate(name string) error {
 	}
 
 	return h.configManager.DeleteTemplate(name)
+}
+
+// CopyTemplate copies a template
+func (h *configHandler) CopyTemplate(sourceName, destName string) error {
+	return h.configManager.CopyTemplate(sourceName, destName)
+}
+
+// MoveTemplate moves (renames) a template
+func (h *configHandler) MoveTemplate(oldName, newName string) error {
+	return h.configManager.MoveTemplate(oldName, newName)
+}
+
+// ViewTemplate returns the template view
+func (h *configHandler) ViewTemplate(name string, raw bool) (*TemplateView, error) {
+	// Validate template exists
+	if err := h.ValidateTemplateExists(name); err != nil {
+		return nil, err
+	}
+
+	// Get template content
+	content, err := h.configManager.GetTemplateContent(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read template content: %w", err)
+	}
+
+	// Construct template path (similar to how it's done in the config manager)
+	claudeDir := filepath.Join(os.Getenv("HOME"), ".claude")
+	templatePath := filepath.Join(claudeDir, "profiles", "templates", name+".json")
+
+	return &TemplateView{
+		Name:    name,
+		Path:    templatePath,
+		Content: content,
+	}, nil
 }
 
 // editTemplateField edits a specific field in the template
