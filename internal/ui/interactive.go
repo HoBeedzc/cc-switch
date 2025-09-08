@@ -323,6 +323,9 @@ func (ui *interactiveUI) ConfirmTemplateCreation(fields []config.TemplateField) 
 	}
 
 	result = strings.ToLower(strings.TrimSpace(result))
+	if result == "" {
+		return true // 默认值：继续交互式创建
+	}
 	return result == "y" || result == "yes" || result == "true"
 }
 
