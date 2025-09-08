@@ -20,10 +20,10 @@ import (
 )
 
 var (
-	webPort  int
-	webHost  string
-	webOpen  bool
-	webQuiet bool
+	webPort      int
+	webHost      string
+	webNoBrowser bool
+	webQuiet     bool
 )
 
 var webCmd = &cobra.Command{
@@ -38,7 +38,8 @@ The web interface allows you to:
 - Test API connectivity
 - Export and import configurations
 
-The server will be available at http://localhost:13501 (or custom host:port)`,
+The server will be available at http://localhost:13501 (or custom host:port)
+By default, your web browser will open automatically to the interface.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkClaudeConfig(); err != nil {
 			return err
@@ -74,8 +75,8 @@ The server will be available at http://localhost:13501 (or custom host:port)`,
 			}
 		}()
 
-		// Open browser if requested
-		if webOpen {
+		// Open browser automatically unless --no-browser is specified
+		if !webNoBrowser {
 			time.Sleep(500 * time.Millisecond) // Give server time to start
 			go openBrowser(fmt.Sprintf("http://%s:%d", webHost, webPort))
 		}
@@ -111,7 +112,7 @@ The server will be available at http://localhost:13501 (or custom host:port)`,
 func init() {
 	webCmd.Flags().IntVarP(&webPort, "port", "p", 13501, "Port to serve on")
 	webCmd.Flags().StringVarP(&webHost, "host", "H", "localhost", "Host to bind to")
-	webCmd.Flags().BoolVarP(&webOpen, "open", "o", false, "Open browser automatically")
+	webCmd.Flags().BoolVarP(&webNoBrowser, "no-browser", "n", false, "Don't open browser automatically")
 	webCmd.Flags().BoolVarP(&webQuiet, "quiet", "q", false, "Suppress startup messages")
 }
 
