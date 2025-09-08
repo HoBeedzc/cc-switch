@@ -167,9 +167,31 @@ Test Claude Code API connectivity and authentication for configurations.
 
 #### Web Interface
 ```bash
+# Launch web interface with default settings
 cc-switch web
+
+# Launch on custom port
+cc-switch web --port 8080
+
+# Launch on custom host and port
+cc-switch web --host 0.0.0.0 --port 8080
+
+# Open browser automatically after starting
+cc-switch web --open
+
+# Suppress startup messages
+cc-switch web --quiet
 ```
-Launch a browser-based interface for managing configurations at http://localhost:13501.
+Launch a modern browser-based interface for managing configurations at http://localhost:13501 (or custom host:port).
+
+**Web Interface Features:**
+- **Profile Management**: Create, edit, delete, and switch between configuration profiles
+- **Template Management**: Full template CRUD operations with security validation
+- **Live Configuration Editing**: Edit configurations directly in the browser with JSON validation
+- **API Connectivity Testing**: Test Claude Code API connections for all or specific profiles
+- **Real-time Status**: View current active configuration and system status
+- **Responsive Design**: Modern, mobile-friendly interface with intuitive navigation
+- **Security Features**: Path traversal protection, input validation, and secure operations
 
 #### Template Management
 ```bash
@@ -251,6 +273,12 @@ cc-switch import backup.ccx
 
 # Launch web interface
 cc-switch web
+
+# Launch web interface with automatic browser opening
+cc-switch web --open
+
+# Launch web interface on custom port with quiet mode
+cc-switch web --port 8080 --quiet
 
 # Enter empty mode (disable all configurations temporarily)
 cc-switch use --empty
@@ -360,7 +388,7 @@ Opens the configuration in your default text editor for modification.
 | `export [profile]` | Export configurations to backup file |
 | `import <file>` | Import configurations from backup file |
 | `test [profile]` | Test configuration API connectivity |
-| `web` | Launch web interface |
+| `web` | Launch web interface with configuration management |
 | `current` | Show current configuration or empty mode status |
 | `view <name>` | View configuration details |
 | `view -t <template>` | View template details |
@@ -485,7 +513,12 @@ cc-switch/
 │   └── interfaces.go
 ├── internal/web/          # Web interface
 │   ├── server.go
-│   └── handlers.go
+│   ├── handlers.go
+│   └── assets/            # Web static resources
+│       ├── css/
+│       │   └── main.css   # Web interface styles
+│       └── js/
+│           └── main.js    # Web interface logic
 ├── internal/export/       # Export functionality
 │   ├── exporter.go
 │   └── format.go
@@ -681,9 +714,31 @@ cc-switch test --quick
 
 #### Web 界面
 ```bash
+# 使用默认设置启动 Web 界面
 cc-switch web
+
+# 在自定义端口启动
+cc-switch web --port 8080
+
+# 在自定义主机和端口启动
+cc-switch web --host 0.0.0.0 --port 8080
+
+# 启动后自动打开浏览器
+cc-switch web --open
+
+# 禁用启动消息
+cc-switch web --quiet
 ```
-在 http://localhost:13501 启动基于浏览器的配置管理界面。
+在 http://localhost:13501（或自定义主机:端口）启动现代化的基于浏览器的配置管理界面。
+
+**Web 界面功能特性：**
+- **配置管理**：创建、编辑、删除和切换配置文件
+- **模板管理**：完整的模板 CRUD 操作，具备安全验证
+- **在线配置编辑**：在浏览器中直接编辑配置，支持 JSON 验证
+- **API 连接测试**：测试所有或指定配置的 Claude Code API 连接
+- **实时状态显示**：查看当前活动配置和系统状态
+- **响应式设计**：现代化、移动设备友好的直观界面
+- **安全功能**：路径遍历保护、输入验证和安全操作
 
 #### 模板管理
 ```bash
@@ -765,6 +820,12 @@ cc-switch import backup.ccx
 
 # 启动 Web 界面
 cc-switch web
+
+# 启动 Web 界面并自动打开浏览器
+cc-switch web --open
+
+# 在自定义端口启动 Web 界面并启用静默模式
+cc-switch web --port 8080 --quiet
 
 # 进入空配置模式（临时禁用所有配置）
 cc-switch use --empty
@@ -874,7 +935,7 @@ cc-switch edit <名称>
 | `export [配置]` | 将配置导出到备份文件 |
 | `import <文件>` | 从备份文件导入配置 |
 | `test [配置]` | 测试配置 API 连接性 |
-| `web` | 启动 Web 界面 |
+| `web` | 启动 Web 界面进行配置管理 |
 | `current` | 显示当前配置或空配置模式状态 |
 | `view <名称>` | 查看配置详情 |
 | `view -t <模板>` | 查看模板详情 |
@@ -999,7 +1060,12 @@ cc-switch/
 │   └── interfaces.go
 ├── internal/web/          # Web 界面
 │   ├── server.go
-│   └── handlers.go
+│   ├── handlers.go
+│   └── assets/            # Web 静态资源
+│       ├── css/
+│       │   └── main.css   # Web 界面样式
+│       └── js/
+│           └── main.js    # Web 界面逻辑
 ├── internal/export/       # 导出功能
 │   ├── exporter.go
 │   └── format.go
