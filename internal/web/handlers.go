@@ -63,15 +63,30 @@ func (api *APIHandler) HandleProfiles(w http.ResponseWriter, r *http.Request) {
 
 // HandleProfile handles /api/profiles/{name} requests
 func (api *APIHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
-	// Extract profile name from path
+	// Extract path after /api/profiles/
 	path := strings.TrimPrefix(r.URL.Path, "/api/profiles/")
-	profileName := strings.Split(path, "/")[0]
-
-	if profileName == "" {
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 || parts[0] == "" {
 		api.sendError(w, "Profile name is required", http.StatusBadRequest)
 		return
 	}
 
+	profileName := parts[0]
+
+	if len(parts) == 1 {
+		// Simple profile operations: /api/profiles/{name}
+		api.handleSingleProfile(w, r, profileName)
+	} else if len(parts) == 2 {
+		// Profile sub-operations: /api/profiles/{name}/{operation}
+		operation := parts[1]
+		api.handleProfileOperation(w, r, profileName, operation)
+	} else {
+		api.sendError(w, "Invalid profile path", http.StatusBadRequest)
+	}
+}
+
+// handleSingleProfile handles basic CRUD operations on profiles
+func (api *APIHandler) handleSingleProfile(w http.ResponseWriter, r *http.Request, profileName string) {
 	switch r.Method {
 	case http.MethodGet:
 		api.getProfile(w, r, profileName)
@@ -81,6 +96,16 @@ func (api *APIHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 		api.deleteProfile(w, r, profileName)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleProfileOperation handles profile sub-operations like move, copy etc.
+func (api *APIHandler) handleProfileOperation(w http.ResponseWriter, r *http.Request, profileName, operation string) {
+	switch operation {
+	case "move":
+		api.moveProfile(w, r, profileName)
+	default:
+		api.sendError(w, fmt.Sprintf("Unknown operation: %s", operation), http.StatusBadRequest)
 	}
 }
 
@@ -719,6 +744,52 @@ func (api *APIHandler) moveTemplate(w http.ResponseWriter, r *http.Request, oldN
 
 	api.sendSuccess(w, map[string]interface{}{
 		"message":  fmt.Sprintf("Template moved from '%s' to '%s' successfully", oldName, request.NewName),
+		"old_name": oldName,
+		"new_name": request.NewName,
+	})
+}
+
+// moveProfile handles POST /api/profiles/{name}/move
+func (api *APIHandler) moveProfile(w http.ResponseWriter, r *http.Request, oldName string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		NewName string `json:"new_name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if request.NewName == "" {
+		api.sendError(w, "New profile name is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate new profile name (similar to template validation)
+	if len(request.NewName) > 255 {
+		api.sendError(w, "Profile name must be 255 characters or less", http.StatusBadRequest)
+		return
+	}
+
+	validName := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if !validName.MatchString(request.NewName) {
+		api.sendError(w, "Profile name can only contain letters, numbers, hyphens, and underscores", http.StatusBadRequest)
+		return
+	}
+
+	// Call the handler to move the profile
+	if err := api.handler.MoveConfig(oldName, request.NewName); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to move profile: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	api.sendSuccess(w, map[string]interface{}{
+		"message":  fmt.Sprintf("Profile moved from '%s' to '%s' successfully", oldName, request.NewName),
 		"old_name": oldName,
 		"new_name": request.NewName,
 	})

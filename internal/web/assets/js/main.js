@@ -245,49 +245,33 @@ class CCSwitch {
 
         const templatesHTML = this.templates.map(template => {
             const isDefault = template === 'default';
+            
             return `
-                <div class="config-card">
-                    <div class="config-header">
-                        <div>
-                            <h3>${this.escapeHtml(template)}${isDefault ? ' <span class="badge">System Default</span>' : ''}</h3>
-                        </div>
-                        <div class="config-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="app.viewTemplate('${this.escapeHtml(template)}')" title="View Template">
-                                View
-                            </button>
-                            ${!isDefault ? `
-                                <button class="btn btn-sm btn-secondary" onclick="app.editTemplate('${this.escapeHtml(template)}')" title="Edit Template">
-                                    Edit
-                                </button>
-                                <button class="btn btn-sm btn-secondary" onclick="app.copyTemplate('${this.escapeHtml(template)}')" title="Copy Template">
-                                    Copy
-                                </button>
-                                <button class="btn btn-sm btn-secondary" onclick="app.renameTemplate('${this.escapeHtml(template)}')" title="Rename Template">
-                                    Rename
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="app.deleteTemplate('${this.escapeHtml(template)}')" title="Delete Template">
-                                    Delete
-                                </button>
-                            ` : ''}
-                            <button class="btn btn-sm btn-primary" onclick="app.createProfileFromTemplate('${this.escapeHtml(template)}')" title="Create Configuration from Template">
-                                Create Config
-                            </button>
-                        </div>
+                <div class="profile-item template-item">
+                    <div class="profile-info">
+                        <div class="profile-name">${this.escapeHtml(template)}</div>
+                        ${isDefault ? '<div class="profile-status system">System Default</div>' : ''}
+                    </div>
+                    <div class="profile-actions">
+                        <button class="btn btn-outline" onclick="app.viewTemplate('${this.escapeHtml(template)}')">View</button>
+                        ${!isDefault ? `<button class="btn btn-warning" onclick="app.editTemplate('${this.escapeHtml(template)}')">Edit</button>` : ''}
+                        ${!isDefault ? `<button class="btn btn-secondary" onclick="app.copyTemplate('${this.escapeHtml(template)}')">Copy</button>` : ''}
+                        ${!isDefault ? `<button class="btn btn-danger" onclick="app.deleteTemplate('${this.escapeHtml(template)}')">Delete</button>` : ''}
+                        <button class="btn btn-primary" onclick="app.createProfileFromTemplate('${this.escapeHtml(template)}')">Create Config</button>
                     </div>
                 </div>
             `;
         }).join('');
 
         container.innerHTML = `
-            <div class="section-actions">
-                <button class="btn btn-primary" onclick="app.createTemplate()">
-                    <span class="icon">+</span> Create Template
-                </button>
-                <button class="btn btn-secondary" onclick="app.loadTemplates(); app.renderTemplates();">
-                    <span class="icon">↻</span> Refresh
-                </button>
+            <div class="flex justify-between items-center mb-4">
+                <h2>Available Templates</h2>
+                <div class="flex gap-2">
+                    <button class="btn btn-secondary" onclick="app.loadTemplates(); app.renderTemplates();">Refresh</button>
+                    <button class="btn btn-primary" onclick="app.createTemplate()">+ Create Template</button>
+                </div>
             </div>
-            <div class="config-list">
+            <div class="profile-list">
                 ${templatesHTML}
             </div>
         `;
@@ -497,6 +481,24 @@ class CCSwitch {
         }
     }
 
+    // Simple modal for view-only content
+    showModal(title, content, buttonText = 'Close', onSave = null) {
+        const buttons = onSave ? [
+            { text: 'Cancel', class: 'btn-secondary', onclick: () => this.closeModal() },
+            { text: buttonText, class: 'btn-primary', onclick: async () => {
+                const result = await onSave();
+                if (result !== false) {
+                    this.closeModal();
+                }
+            }}
+        ] : [
+            { text: buttonText, class: 'btn-primary', onclick: () => this.closeModal() }
+        ];
+        
+        const modal = this.createModal(title, content, buttons);
+        document.body.appendChild(modal);
+    }
+
     renderProfileView(profile) {
         const content = profile.content;
         const formattedJson = JSON.stringify(content, null, 2);
@@ -520,9 +522,15 @@ class CCSwitch {
         const content = profile.content;
         
         return `
+            <div class="form-group">
+                <label class="form-label">Profile Name</label>
+                <input type="text" id="profile-name-input" value="${this.escapeHtml(profile.name)}" class="form-input">
+                <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
+                    Enter new name to rename profile
+                </small>
+            </div>
+            
             <div class="profile-metadata">
-                <dt>Name:</dt>
-                <dd>${this.escapeHtml(profile.name)}</dd>
                 <dt>Path:</dt>
                 <dd>${this.escapeHtml(profile.path)}</dd>
             </div>
@@ -649,17 +657,72 @@ class CCSwitch {
         button.parentElement.remove();
     }
 
+    // Profile Management Functions
+    
+    validateProfileName(name) {
+        if (!name) {
+            return "Profile name cannot be empty";
+        }
+        
+        if (name.length > 255) {
+            return "Profile name must be 255 characters or less";
+        }
+        
+        // Check for valid characters only
+        const validName = /^[a-zA-Z0-9_-]+$/;
+        if (!validName.test(name)) {
+            return "Profile name can only contain letters, numbers, hyphens, and underscores";
+        }
+        
+        return null; // Valid
+    }
+
     async saveProfileChanges(profileName) {
         try {
+            const nameInput = document.getElementById('profile-name-input');
+            const newName = nameInput ? nameInput.value.trim() : profileName;
             const formData = this.collectFormData();
             
-            // Call update API (placeholder - you'll need to implement the PUT endpoint)
-            const response = await this.apiCall(`/api/profiles/${encodeURIComponent(profileName)}`, {
-                method: 'PUT',
-                body: JSON.stringify(formData)
-            });
+            // Check if name changed
+            if (newName !== profileName) {
+                // Validate new name
+                const validationError = this.validateProfileName(newName);
+                if (validationError) {
+                    this.showError(validationError);
+                    if (nameInput) nameInput.focus();
+                    return;
+                }
+                
+                // Check if new name already exists
+                if (this.profiles.some(p => p.name === newName)) {
+                    this.showError(`Profile "${newName}" already exists`);
+                    if (nameInput) nameInput.focus();
+                    return;
+                }
+                
+                // First update the profile content
+                await this.apiCall(`/api/profiles/${encodeURIComponent(profileName)}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(formData)
+                });
+                
+                // Then rename the profile
+                await this.apiCall(`/api/profiles/${encodeURIComponent(profileName)}/move`, {
+                    method: 'POST',
+                    body: JSON.stringify({ new_name: newName })
+                });
+                
+                this.showSuccess(`Profile renamed to "${newName}" and updated successfully`);
+            } else {
+                // Only update content
+                await this.apiCall(`/api/profiles/${encodeURIComponent(profileName)}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(formData)
+                });
+                
+                this.showSuccess(`Profile "${profileName}" updated successfully`);
+            }
             
-            this.showSuccess(`Profile "${profileName}" updated successfully`);
             this.closeModal();
             await this.loadData();
             this.renderProfiles();
@@ -1133,7 +1196,8 @@ class CCSwitch {
                 <form id="edit-template-form">
                     <div class="form-group">
                         <label class="form-label">Template Name</label>
-                        <input type="text" value="${this.escapeHtml(templateName)}" disabled class="form-input">
+                        <input type="text" id="template-name-input" value="${this.escapeHtml(templateName)}" class="form-input" ${templateName === 'default' ? 'disabled' : ''}>
+                        ${templateName === 'default' ? '<small style="color: var(--text-secondary);">System default template cannot be renamed</small>' : '<small style="color: var(--text-secondary);">Enter new name to rename template</small>'}
                     </div>
                     <div class="form-group">
                         <label class="form-label">Template Content (JSON)</label>
@@ -1142,25 +1206,59 @@ class CCSwitch {
                 </form>
             `;
             
-            this.showModal(`Edit Template: ${templateName}`, content, 'Save', async () => {
+            this.showModal(`Edit Template: ${templateName}`, content, 'Save Changes', async () => {
+                const nameInput = document.getElementById('template-name-input');
                 const contentTextarea = document.getElementById('template-content');
+                const newName = nameInput.value.trim();
+                
                 try {
+                    // Parse and validate JSON content
                     const newContent = JSON.parse(contentTextarea.value);
                     
-                    await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(newContent)
-                    });
+                    // Check if name changed and template is not default
+                    if (newName !== templateName && templateName !== 'default') {
+                        // Validate new name
+                        const validationError = this.validateTemplateName(newName);
+                        if (validationError) {
+                            this.showError(validationError);
+                            nameInput.focus();
+                            return false;
+                        }
+                        
+                        // Rename and update content
+                        await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}/move`, {
+                            method: 'POST',
+                            body: JSON.stringify({ new_name: newName })
+                        });
+                        
+                        // Update content with new name
+                        await this.apiCall(`/api/templates/${encodeURIComponent(newName)}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(newContent)
+                        });
+                        
+                        this.showSuccess(`Template renamed to '${newName}' and updated successfully`);
+                    } else {
+                        // Only update content
+                        await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(newContent)
+                        });
+                        
+                        this.showSuccess(`Template '${templateName}' updated successfully`);
+                    }
                     
-                    this.showSuccess(`Template '${templateName}' updated successfully`);
                     await this.loadTemplates();
                     this.renderTemplates();
                     return true;
-                } catch (parseError) {
-                    this.showError(`Invalid JSON: ${parseError.message}`);
-                    return false;
                 } catch (error) {
-                    this.showError(`Failed to update template: ${error.message}`);
+                    // Handle both JSON parsing errors and API call errors
+                    if (error instanceof SyntaxError) {
+                        this.showError(`Invalid JSON: ${error.message}`);
+                        contentTextarea.focus();
+                    } else {
+                        this.showError(`Failed to update template: ${error.message}`);
+                    }
                     return false;
                 }
             });
@@ -1194,30 +1292,6 @@ class CCSwitch {
         }
     }
 
-    async renameTemplate(templateName) {
-        const newName = prompt(`Enter new name for '${templateName}':`);
-        if (!newName) return;
-        
-        // Validate template name
-        const validationError = this.validateTemplateName(newName);
-        if (validationError) {
-            this.showError(validationError);
-            return;
-        }
-
-        try {
-            await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}/move`, {
-                method: 'POST',
-                body: JSON.stringify({ new_name: newName })
-            });
-            
-            this.showSuccess(`Template renamed from '${templateName}' to '${newName}' successfully`);
-            await this.loadTemplates();
-            this.renderTemplates();
-        } catch (error) {
-            this.showError(`Failed to rename template: ${error.message}`);
-        }
-    }
 
     async deleteTemplate(templateName) {
         if (!confirm(`Are you sure you want to delete template "${templateName}"?`)) {

@@ -164,6 +164,11 @@ body {
   color: white;
 }
 
+.profile-status.system {
+  background-color: var(--warning-color);
+  color: white;
+}
+
 .profile-actions {
   display: flex;
   gap: 0.5rem;
