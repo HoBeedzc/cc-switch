@@ -743,7 +743,17 @@ class CCSwitch {
     collectFormFieldData() {
         const form = document.getElementById('profile-edit-form');
         const sections = form.querySelectorAll('[data-section]');
-        const data = { env: {}, permissions: { allow: [], deny: [] }, statusLine: {} };
+        
+        // Start with the original profile data to preserve existing fields
+        const originalData = window.currentProfileData?.content || {};
+        const data = {
+            env: originalData.env || {},
+            permissions: {
+                allow: originalData.permissions?.allow || [],
+                deny: originalData.permissions?.deny || []
+            },
+            statusLine: originalData.statusLine || {}
+        };
         
         sections.forEach(section => {
             const sectionKey = section.getAttribute('data-section');
@@ -766,6 +776,9 @@ class CCSwitch {
                         obj[key] = value;
                     }
                 });
+                
+                // Always update the section based on form data
+                // This ensures user modifications (including clearing fields) are respected
                 data[sectionKey] = obj;
             }
         });
