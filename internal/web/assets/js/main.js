@@ -450,6 +450,12 @@ class CCSwitch {
                 button.className = `btn ${btn.class}`;
                 button.textContent = btn.text;
                 button.onclick = btn.onclick;
+                if (btn.id) {
+                    button.id = btn.id;
+                }
+                if (btn.disabled) {
+                    button.disabled = btn.disabled;
+                }
                 footer.appendChild(button);
             });
             modal.appendChild(footer);
@@ -827,11 +833,62 @@ class CCSwitch {
     }
 
     exportConfigs() {
-        alert('Export configurations functionality coming soon!');
+        this.showExportModal();
     }
 
     importConfigs() {
-        alert('Import configurations functionality coming soon!');
+        this.showImportModal();
+    }
+
+    showExportModal() {
+        const content = `
+            <form id="export-form">
+                <div class="form-group">
+                    <label class="form-label">Export Type</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="export-type" value="all" checked>
+                            Export All Profiles (${this.profiles.length} profiles)
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="export-type" value="current" ${!this.currentProfile ? 'disabled' : ''}>
+                            Export Current Profile Only (${this.currentProfile || 'None'})
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" id="encrypt-export" style="margin-right: 0.5rem;">
+                        Encrypt export file (recommended)
+                    </label>
+                </div>
+                
+                <div class="form-group" id="password-section" style="display: none;">
+                    <label class="form-label">Encryption Password</label>
+                    <input type="password" id="export-password" class="form-input" placeholder="Enter a strong password">
+                    <input type="password" id="export-password-confirm" class="form-input" placeholder="Confirm password" style="margin-top: 0.5rem;">
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
+                        Use a strong password. This cannot be recovered if lost.
+                    </small>
+                </div>
+            </form>
+        `;
+        
+        const modal = this.createModal('Export Configurations', content, [
+            { text: 'Cancel', class: 'btn-secondary', onclick: () => this.closeModal() },
+            { text: 'Export & Download', class: 'btn-primary', onclick: () => this.performExport() }
+        ]);
+        
+        document.body.appendChild(modal);
+        
+        // Setup event listeners for the form
+        const encryptCheckbox = document.getElementById('encrypt-export');
+        const passwordSection = document.getElementById('password-section');
+        
+        encryptCheckbox.addEventListener('change', () => {
+            passwordSection.style.display = encryptCheckbox.checked ? 'block' : 'none';
+        });
     }
 
     // Create profile functionality
@@ -1124,6 +1181,87 @@ class CCSwitch {
         }
     }
 
+    async performExport() {
+        const exportType = document.querySelector('input[name="export-type"]:checked').value;
+        const encrypt = document.getElementById('encrypt-export').checked;
+        
+        let password = '';
+        if (encrypt) {
+            const password1 = document.getElementById('export-password').value;
+            const password2 = document.getElementById('export-password-confirm').value;
+            
+            if (!password1) {
+                this.showError('Password is required for encryption');
+                document.getElementById('export-password').focus();
+                return;
+            }
+            
+            if (password1 !== password2) {
+                this.showError('Passwords do not match');
+                document.getElementById('export-password-confirm').focus();
+                return;
+            }
+            
+            if (password1.length < 8) {
+                this.showError('Password must be at least 8 characters long');
+                document.getElementById('export-password').focus();
+                return;
+            }
+            
+            password = password1;
+        }
+        
+        const requestData = {
+            type: exportType,
+            password: password
+        };
+        
+        if (exportType === 'current') {
+            requestData.profile_name = this.currentProfile;
+        }
+        
+        try {
+            // Show loading state
+            const exportButton = document.querySelector('.modal-footer .btn-primary');
+            const originalText = exportButton.textContent;
+            exportButton.disabled = true;
+            exportButton.innerHTML = '<div class="spinner"></div>Exporting...';
+            
+            const response = await fetch('/api/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
+            if (response.ok) {
+                // Download file
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+                const filename = `cc-switch-${exportType}-${timestamp}.ccx`;
+                a.download = filename;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                this.showSuccess(`Export completed successfully! File: ${filename}`);
+                this.closeModal();
+            } else {
+                const error = await response.json();
+                this.showError(`Export failed: ${error.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            this.showError(`Export failed: ${error.message}`);
+        }
+    }
+
     // Template Management Functions
     
     validateTemplateName(name) {
@@ -1343,6 +1481,281 @@ class CCSwitch {
         } catch (error) {
             this.showError(`Failed to create configuration from template: ${error.message}`);
         }
+    }
+
+    showImportModal() {
+        const content = `
+            <form id="import-form">
+                <div class="form-group">
+                    <label class="form-label">Select CCX File</label>
+                    <div class="file-upload-area" onclick="document.getElementById('import-file').click()" style="border: 2px dashed #ccc; padding: 2rem; text-align: center; cursor: pointer; border-radius: 8px;">
+                        <input type="file" id="import-file" accept=".ccx" style="display: none;">
+                        <div class="file-upload-content">
+                            <div class="file-upload-icon" style="font-size: 2rem; margin-bottom: 1rem;">📁</div>
+                            <div class="file-upload-text">Click to select a CCX file or drag & drop</div>
+                            <div class="file-upload-hint" style="color: var(--text-secondary); margin-top: 0.5rem;">Supported format: .ccx files exported from cc-switch</div>
+                        </div>
+                    </div>
+                    <div id="file-info" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 4px;">
+                        <div class="file-info-item">
+                            <strong>File:</strong> <span id="file-name"></span>
+                        </div>
+                        <div class="file-info-item">
+                            <strong>Size:</strong> <span id="file-size"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group" id="password-section-import" style="display: none;">
+                    <label class="form-label">Decryption Password</label>
+                    <input type="password" id="import-password" class="form-input" placeholder="Enter password to decrypt file">
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
+                        This file appears to be encrypted. Enter the password used during export.
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Import Options</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" style="display: block; margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="import-preview" style="margin-right: 0.5rem;">
+                            Preview only (don't actually import)
+                        </label>
+                        <label class="checkbox-label" style="display: block; margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="import-overwrite" style="margin-right: 0.5rem;">
+                            Overwrite existing profiles with same names
+                        </label>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label class="form-label">Name Prefix (optional)</label>
+                        <input type="text" id="import-prefix" class="form-input" placeholder="e.g., imported-">
+                        <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
+                            Add a prefix to avoid naming conflicts with existing profiles
+                        </small>
+                    </div>
+                </div>
+            </form>
+        `;
+        
+        const modal = this.createModal('Import Configurations', content, [
+            { text: 'Cancel', class: 'btn-secondary', onclick: () => this.closeModal() },
+            { text: 'Import', class: 'btn-primary', onclick: () => this.performImport(), id: 'import-button', disabled: true }
+        ]);
+        
+        document.body.appendChild(modal);
+        
+        // Setup file input handling
+        this.setupImportFileHandling();
+    }
+
+    setupImportFileHandling() {
+        const fileInput = document.getElementById('import-file');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const fileSize = document.getElementById('file-size');
+        const importButton = document.getElementById('import-button');
+        const passwordSection = document.getElementById('password-section-import');
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileName.textContent = file.name;
+                fileSize.textContent = this.formatFileSize(file.size);
+                fileInfo.style.display = 'block';
+                importButton.disabled = false;
+                
+                // For now, assume all .ccx files might be encrypted
+                if (file.name.endsWith('.ccx')) {
+                    passwordSection.style.display = 'block';
+                }
+            } else {
+                fileInfo.style.display = 'none';
+                importButton.disabled = true;
+                passwordSection.style.display = 'none';
+            }
+        });
+        
+        // Setup drag & drop
+        const uploadArea = document.querySelector('.file-upload-area');
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#007bff';
+            uploadArea.style.backgroundColor = '#f8f9fa';
+        });
+        
+        uploadArea.addEventListener('dragleave', (e) => {
+            uploadArea.style.borderColor = '#ccc';
+            uploadArea.style.backgroundColor = 'transparent';
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            uploadArea.style.backgroundColor = 'transparent';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    async performImport() {
+        const fileInput = document.getElementById('import-file');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            this.showError('Please select a file to import');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const options = {
+            overwrite: document.getElementById('import-overwrite').checked,
+            dry_run: document.getElementById('import-preview').checked,
+            prefix: document.getElementById('import-prefix').value.trim()
+        };
+        
+        const password = document.getElementById('import-password').value;
+        if (password) {
+            formData.append('password', password);
+        }
+        
+        formData.append('options', JSON.stringify(options));
+        
+        try {
+            // Show loading state
+            const importButton = document.getElementById('import-button');
+            const originalText = importButton.textContent;
+            importButton.disabled = true;
+            importButton.innerHTML = '<div class="spinner"></div>Importing...';
+            
+            const response = await fetch('/api/import', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showImportResults(result.data);
+                this.closeModal();
+                
+                // If not a dry run, reload data
+                if (!options.dry_run) {
+                    await this.loadData();
+                    this.renderProfiles();
+                }
+            } else {
+                this.showError(`Import failed: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            this.showError(`Import failed: ${error.message}`);
+        }
+    }
+
+    showImportResults(result) {
+        const isDryRun = result.dry_run || false;
+        const title = isDryRun ? 'Import Preview Results' : 'Import Results';
+        
+        let content = `
+            <div class="import-results">
+                <div class="result-summary" style="margin-bottom: 1.5rem;">
+                    <h3>Summary</h3>
+                    <div class="summary-item" style="margin-bottom: 0.5rem;">
+                        <strong>Total profiles in file:</strong> ${result.total_profiles || 0}
+                    </div>
+                    <div class="summary-item" style="margin-bottom: 0.5rem;">
+                        <strong>${isDryRun ? 'Would import' : 'Imported'}:</strong> 
+                        <span style="color: #28a745;">${result.imported_count || 0}</span>
+                    </div>`;
+        
+        if (result.skipped_count > 0) {
+            content += `
+                    <div class="summary-item" style="margin-bottom: 0.5rem;">
+                        <strong>Skipped:</strong> 
+                        <span style="color: #ffc107;">${result.skipped_count}</span>
+                    </div>`;
+        }
+        
+        if (result.renamed_count > 0) {
+            content += `
+                    <div class="summary-item" style="margin-bottom: 0.5rem;">
+                        <strong>Renamed:</strong> 
+                        <span style="color: #17a2b8;">${result.renamed_count}</span>
+                    </div>`;
+        }
+        
+        if (result.error_count > 0) {
+            content += `
+                    <div class="summary-item" style="margin-bottom: 0.5rem;">
+                        <strong>Errors:</strong> 
+                        <span style="color: #dc3545;">${result.error_count}</span>
+                    </div>`;
+        }
+        
+        content += '</div>';
+        
+        if (result.profiles_imported && result.profiles_imported.length > 0) {
+            content += `
+                <div class="result-section" style="margin-bottom: 1.5rem;">
+                    <h4>${isDryRun ? 'Profiles that would be imported:' : 'Successfully imported profiles:'}</h4>
+                    <ul style="list-style: none; padding: 0;">`;
+            
+            result.profiles_imported.forEach(profile => {
+                content += `<li style="margin-bottom: 0.25rem; color: #28a745;">✅ ${this.escapeHtml(profile)}</li>`;
+            });
+            
+            content += '</ul></div>';
+        }
+        
+        if (result.conflicts && result.conflicts.length > 0) {
+            content += `
+                <div class="result-section" style="margin-bottom: 1.5rem;">
+                    <h4>Conflicts handled:</h4>
+                    <ul style="list-style: none; padding: 0;">`;
+            
+            result.conflicts.forEach(conflict => {
+                content += `<li style="margin-bottom: 0.25rem; color: #ffc107;">⚠️ ${this.escapeHtml(conflict)}</li>`;
+            });
+            
+            content += '</ul></div>';
+        }
+        
+        if (result.errors && result.errors.length > 0) {
+            content += `
+                <div class="result-section">
+                    <h4>Errors encountered:</h4>
+                    <ul style="list-style: none; padding: 0;">`;
+            
+            result.errors.forEach(error => {
+                content += `<li style="margin-bottom: 0.25rem; color: #dc3545;">❌ ${this.escapeHtml(error)}</li>`;
+            });
+            
+            content += '</ul></div>';
+        }
+        
+        content += '</div>';
+        
+        this.showModal(title, content, 'Close', null);
+    }
+
+    formatFileSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+        
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+        
+        return `${size.toFixed(1)} ${units[unitIndex]}`;
     }
 }
 
