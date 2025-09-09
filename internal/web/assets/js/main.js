@@ -1521,17 +1521,17 @@ class CCSwitch {
                             <input type="checkbox" id="import-preview" style="margin-right: 0.5rem;">
                             Preview only (don't actually import)
                         </label>
-                        <label class="checkbox-label" style="display: block; margin-bottom: 0.5rem;">
-                            <input type="checkbox" id="import-overwrite" style="margin-right: 0.5rem;">
-                            Overwrite existing profiles with same names
-                        </label>
                     </div>
                     
                     <div class="form-group" style="margin-top: 1rem;">
-                        <label class="form-label">Name Prefix (optional)</label>
-                        <input type="text" id="import-prefix" class="form-input" placeholder="e.g., imported-">
+                        <label class="form-label">Conflict Resolution</label>
+                        <select id="import-conflict" class="form-input">
+                            <option value="both">Rename conflicting profiles (recommended)</option>
+                            <option value="skip">Skip conflicting profiles</option>
+                            <option value="overwrite">Overwrite existing profiles</option>
+                        </select>
                         <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
-                            Add a prefix to avoid naming conflicts with existing profiles
+                            Choose how to handle profiles with names that already exist
                         </small>
                     </div>
                 </div>
@@ -1616,9 +1616,8 @@ class CCSwitch {
         formData.append('file', file);
         
         const options = {
-            overwrite: document.getElementById('import-overwrite').checked,
-            dry_run: document.getElementById('import-preview').checked,
-            prefix: document.getElementById('import-prefix').value.trim()
+            conflict_mode: document.getElementById('import-conflict').value,
+            dry_run: document.getElementById('import-preview').checked
         };
         
         const password = document.getElementById('import-password').value;
