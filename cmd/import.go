@@ -16,10 +16,9 @@ import (
 )
 
 var (
-	importPassword  string
-	importOverwrite bool
-	importPrefix    string
-	importDryRun    bool
+	importPassword string
+	importConflict string
+	importDryRun   bool
 )
 
 var importCmd = &cobra.Command{
@@ -32,10 +31,13 @@ Examples:
   cc-switch import backup.ccx -p mypassword
 
   # Import with overwrite existing profiles
-  cc-switch import backup.ccx --overwrite
+  cc-switch import backup.ccx --conflict=overwrite
 
-  # Import with prefix to avoid conflicts
-  cc-switch import team-configs.ccx --prefix team-
+  # Import and skip conflicting profiles
+  cc-switch import backup.ccx --conflict=skip
+
+  # Import and rename conflicting profiles (default)
+  cc-switch import backup.ccx --conflict=both
 
   # Dry run to see what would be imported
   cc-switch import backup.ccx --dry-run
@@ -85,6 +87,15 @@ Examples:
 			}
 		}
 
+		// Validate conflict mode
+		conflictMode := importConflict
+		if conflictMode == "" {
+			conflictMode = "both" // Default to rename mode
+		}
+		if conflictMode != "skip" && conflictMode != "overwrite" && conflictMode != "both" {
+			return fmt.Errorf("invalid conflict mode: %s. Valid options are: skip, overwrite, both", conflictMode)
+		}
+
 		// Check for conflicts if not in dry-run mode
 		if !importDryRun {
 			color.Cyan("🔍 Checking for conflicts...")
@@ -93,9 +104,11 @@ Examples:
 				return fmt.Errorf("failed to check conflicts: %w", err)
 			}
 
-			if len(conflicts) > 0 && !importOverwrite && importPrefix == "" {
-				showConflicts(conflicts)
-				if !confirmProceed() {
+			if len(conflicts) > 0 && conflictMode != "overwrite" {
+				showConflicts(conflicts, conflictMode)
+				if conflictMode == "skip" || confirmProceed(conflictMode) {
+					// Continue with import
+				} else {
 					color.Yellow("Import cancelled by user")
 					return nil
 				}
@@ -104,9 +117,8 @@ Examples:
 
 		// Prepare import options
 		options := importpkg.ImportOptions{
-			Overwrite: importOverwrite,
-			Prefix:    importPrefix,
-			DryRun:    importDryRun,
+			ConflictMode: conflictMode,
+			DryRun:       importDryRun,
 		}
 
 		// Perform import
@@ -130,8 +142,7 @@ Examples:
 
 func init() {
 	importCmd.Flags().StringVarP(&importPassword, "password", "p", "", "Decryption password (prompt if not provided)")
-	importCmd.Flags().BoolVar(&importOverwrite, "overwrite", false, "Overwrite existing profiles")
-	importCmd.Flags().StringVar(&importPrefix, "prefix", "", "Add prefix to imported profile names")
+	importCmd.Flags().StringVar(&importConflict, "conflict", "both", "How to handle conflicts: skip, overwrite, both (default: both)")
 	importCmd.Flags().BoolVar(&importDryRun, "dry-run", false, "Show what would be imported without making changes")
 }
 
@@ -162,22 +173,38 @@ func showFileInfo(metadata *export.CCXMetadata) {
 	fmt.Println()
 }
 
-func showConflicts(conflicts []importpkg.ConflictInfo) {
+func showConflicts(conflicts []importpkg.ConflictInfo, conflictMode string) {
 	color.Yellow("⚠️  Naming conflicts detected:")
 	for _, conflict := range conflicts {
-		color.Yellow("   • '%s' already exists (suggested: '%s')",
-			conflict.ConflictName, conflict.SuggestedName)
+		color.Yellow("   • '%s' already exists", conflict.ConflictName)
 	}
 	fmt.Println()
-	color.Yellow("Options to resolve conflicts:")
-	color.Yellow("   • Use --overwrite to replace existing profiles")
-	color.Yellow("   • Use --prefix to add a prefix to imported names")
-	color.Yellow("   • Rename existing profiles manually")
+
+	switch conflictMode {
+	case "skip":
+		color.Yellow("Conflict mode: SKIP - Conflicting profiles will be skipped")
+	case "both":
+		color.Yellow("Conflict mode: BOTH - Conflicting profiles will be renamed automatically")
+		color.Yellow("Example suggestions:")
+		for _, conflict := range conflicts {
+			color.Yellow("   • '%s' → '%s'", conflict.ConflictName, conflict.SuggestedName)
+		}
+	}
 	fmt.Println()
 }
 
-func confirmProceed() bool {
-	fmt.Print("Continue with import? Conflicting profiles will be renamed automatically [y/N]: ")
+func confirmProceed(conflictMode string) bool {
+	var prompt string
+	switch conflictMode {
+	case "skip":
+		prompt = "Continue with import? Conflicting profiles will be skipped [y/N]: "
+	case "both":
+		prompt = "Continue with import? Conflicting profiles will be renamed automatically [y/N]: "
+	default:
+		prompt = "Continue with import? [y/N]: "
+	}
+
+	fmt.Print(prompt)
 	var response string
 	fmt.Scanln(&response)
 	response = strings.ToLower(strings.TrimSpace(response))

@@ -141,11 +141,17 @@ Export configurations to encrypted backup files (.ccx format). Supports password
 # Import from backup file
 cc-switch import backup.ccx
 
-# Import with overwrite
-cc-switch import backup.ccx --overwrite
+# Import with overwrite existing profiles
+cc-switch import backup.ccx --conflict=overwrite
 
-# Import with prefix
-cc-switch import backup.ccx --prefix team-
+# Import and skip conflicting profiles
+cc-switch import backup.ccx --conflict=skip
+
+# Import and rename conflicting profiles (default)
+cc-switch import backup.ccx --conflict=both
+
+# Preview import without making changes
+cc-switch import backup.ccx --dry-run
 ```
 Import configurations from encrypted backup files. Supports conflict resolution and dry-run mode.
 

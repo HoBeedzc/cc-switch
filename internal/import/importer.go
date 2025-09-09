@@ -11,9 +11,8 @@ import (
 
 // ImportOptions defines import configuration
 type ImportOptions struct {
-	Overwrite bool   // Overwrite existing profiles
-	Prefix    string // Prefix to add to profile names
-	DryRun    bool   // Only validate, don't actually import
+	ConflictMode string `json:"conflict_mode"` // How to handle conflicts: skip, overwrite, both
+	DryRun       bool   `json:"dry_run"`       // Only validate, don't actually import
 }
 
 // ImportResult represents the result of an import operation
@@ -101,7 +100,6 @@ func (i *ImporterImpl) Import(inputPath string, password string, options ImportO
 
 	// Update summary
 	result.Summary.ImportedCount = len(result.ProfilesImported)
-	result.Summary.SkippedCount = len(result.Conflicts)
 
 	return result, nil
 }
@@ -146,29 +144,39 @@ func (i *ImporterImpl) CheckConflicts(inputPath string, password string) ([]Conf
 
 // importProfile imports a single profile
 func (i *ImporterImpl) importProfile(profileData export.ProfileData, options ImportOptions, result *ImportResult) error {
-	// Apply prefix if specified
 	finalName := profileData.Name
-	if options.Prefix != "" {
-		finalName = options.Prefix + finalName
-	}
 
 	// Check for conflicts
 	if i.configManager.ProfileExists(finalName) {
-		if !options.Overwrite {
-			// Generate alternative name
+		switch options.ConflictMode {
+		case "skip":
+			// Skip conflicting profiles
+			if options.DryRun {
+				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s (would be skipped)", finalName))
+			} else {
+				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s (skipped)", finalName))
+				result.Summary.SkippedCount++
+			}
+			return nil
+
+		case "overwrite":
+			// Overwrite existing profiles
+			if options.DryRun {
+				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s (would be overwritten)", finalName))
+			} else {
+				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s (overwritten)", finalName))
+			}
+
+		case "both":
+			// Rename conflicting profiles
 			alternativeName := i.generateAlternativeName(finalName)
 			if options.DryRun {
 				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s -> %s (would be renamed)", finalName, alternativeName))
-				return nil
+			} else {
+				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s -> %s (renamed)", finalName, alternativeName))
+				result.Summary.RenamedCount++
 			}
-
 			finalName = alternativeName
-			result.Summary.RenamedCount++
-		} else {
-			if options.DryRun {
-				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s (would be overwritten)", finalName))
-				return nil
-			}
 		}
 	}
 
@@ -183,7 +191,7 @@ func (i *ImporterImpl) importProfile(profileData export.ProfileData, options Imp
 	}
 
 	// Create or update the profile
-	if i.configManager.ProfileExists(finalName) {
+	if i.configManager.ProfileExists(finalName) && options.ConflictMode == "overwrite" {
 		// Update existing profile
 		if err := i.configManager.UpdateProfile(finalName, profileData.Content); err != nil {
 			return fmt.Errorf("failed to update profile: %w", err)
