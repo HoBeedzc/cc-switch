@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
 
+	"cc-switch/internal/config"
+	"cc-switch/internal/export"
 	"cc-switch/internal/handler"
+	importpkg "cc-switch/internal/import"
 )
 
 // APIHandler handles API requests
@@ -793,4 +797,229 @@ func (api *APIHandler) moveProfile(w http.ResponseWriter, r *http.Request, oldNa
 		"old_name": oldName,
 		"new_name": request.NewName,
 	})
+}
+
+// HandleExport handles /api/export requests
+func (api *APIHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		Type        string `json:"type"`                   // "all", "current", "single"
+		ProfileName string `json:"profile_name,omitempty"` // for type="single"
+		Password    string `json:"password,omitempty"`     // optional encryption password
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request
+	if request.Type == "" {
+		api.sendError(w, "Export type is required", http.StatusBadRequest)
+		return
+	}
+
+	if request.Type != "all" && request.Type != "current" && request.Type != "single" {
+		api.sendError(w, "Invalid export type. Must be 'all', 'current', or 'single'", http.StatusBadRequest)
+		return
+	}
+
+	if request.Type == "single" && request.ProfileName == "" {
+		api.sendError(w, "Profile name is required for single export", http.StatusBadRequest)
+		return
+	}
+
+	// Initialize config manager
+	cm, err := config.NewConfigManager()
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to initialize config manager: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Create exporter
+	exporter := export.NewExporter(cm)
+
+	// Create a temporary file for the export
+	tempFile, err := os.CreateTemp("", "cc-switch-export-*.ccx")
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to create temporary file: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(tempFile.Name()) // Clean up temp file
+	defer tempFile.Close()
+
+	// Perform export based on type
+	var exportErr error
+	var profileCount int
+
+	switch request.Type {
+	case "all":
+		profiles, err := cm.ListProfiles()
+		if err != nil {
+			api.sendError(w, fmt.Sprintf("Failed to list profiles: %v", err), http.StatusInternalServerError)
+			return
+		}
+		profileCount = len(profiles)
+		if profileCount == 0 {
+			api.sendError(w, "No profiles found to export", http.StatusBadRequest)
+			return
+		}
+		exportErr = exporter.ExportAll(request.Password, tempFile.Name())
+
+	case "current":
+		current, err := cm.GetCurrentProfile()
+		if err != nil {
+			api.sendError(w, fmt.Sprintf("Failed to get current profile: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if current == "" {
+			api.sendError(w, "No current profile set", http.StatusBadRequest)
+			return
+		}
+		profileCount = 1
+		exportErr = exporter.ExportCurrent(request.Password, tempFile.Name())
+
+	case "single":
+		if !cm.ProfileExists(request.ProfileName) {
+			api.sendError(w, fmt.Sprintf("Profile '%s' does not exist", request.ProfileName), http.StatusNotFound)
+			return
+		}
+		profileCount = 1
+		exportErr = exporter.ExportProfile(request.ProfileName, request.Password, tempFile.Name())
+	}
+
+	if exportErr != nil {
+		api.sendError(w, fmt.Sprintf("Export failed: %v", exportErr), http.StatusInternalServerError)
+		return
+	}
+
+	// Read the exported file
+	fileData, err := os.ReadFile(tempFile.Name())
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to read export file: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Generate filename
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("cc-switch-%s-%s.ccx", request.Type, timestamp)
+
+	// Set headers for file download
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(fileData)))
+
+	// Write file data
+	if _, err := w.Write(fileData); err != nil {
+		// Log the error, but we can't send an API error response at this point
+		fmt.Printf("Failed to write export data: %v\n", err)
+	}
+}
+
+// HandleImport handles /api/import requests
+func (api *APIHandler) HandleImport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form with size limit (10MB)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		api.sendError(w, "Failed to parse form data", http.StatusBadRequest)
+		return
+	}
+
+	// Get uploaded file
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		api.sendError(w, "No file uploaded", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate file size (10MB limit)
+	if fileHeader.Size > 10<<20 {
+		api.sendError(w, "File size exceeds 10MB limit", http.StatusBadRequest)
+		return
+	}
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".ccx") {
+		api.sendError(w, "Invalid file type. Only .ccx files are supported", http.StatusBadRequest)
+		return
+	}
+
+	// Get password and options
+	password := r.FormValue("password")
+	optionsStr := r.FormValue("options")
+
+	var options importpkg.ImportOptions
+	if optionsStr != "" {
+		if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
+			api.sendError(w, "Invalid options format", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Create temporary file for upload
+	tempFile, err := os.CreateTemp("", "cc-switch-import-*.ccx")
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to create temporary file: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(tempFile.Name()) // Clean up temp file
+	defer tempFile.Close()
+
+	// Copy uploaded file to temp file
+	if _, err := io.Copy(tempFile, file); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to save uploaded file: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Close temp file to ensure all data is written
+	tempFile.Close()
+
+	// Initialize config manager
+	cm, err := config.NewConfigManager()
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to initialize config manager: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Create importer
+	importer := importpkg.NewImporter(cm)
+
+	// Validate file format first
+	metadata, err := importer.ValidateFile(tempFile.Name())
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Invalid import file: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Perform import
+	result, err := importer.Import(tempFile.Name(), password, options)
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Import failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Prepare response data
+	responseData := map[string]interface{}{
+		"total_profiles":    result.Summary.TotalProfiles,
+		"imported_count":    result.Summary.ImportedCount,
+		"skipped_count":     result.Summary.SkippedCount,
+		"renamed_count":     result.Summary.RenamedCount,
+		"error_count":       result.Summary.ErrorCount,
+		"profiles_imported": result.ProfilesImported,
+		"conflicts":         result.Conflicts,
+		"errors":            result.Errors,
+		"dry_run":           options.DryRun,
+		"metadata":          metadata,
+	}
+
+	api.sendSuccess(w, responseData)
 }

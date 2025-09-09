@@ -44,6 +44,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/templates", api.HandleTemplates)
 	mux.HandleFunc("/api/templates/", api.HandleTemplateRoutes)
 	mux.HandleFunc("/api/health", api.HandleHealth)
+	mux.HandleFunc("/api/export", api.HandleExport)
+	mux.HandleFunc("/api/import", api.HandleImport)
 
 	// Static file server
 	staticHandler := http.FileServer(http.FS(assets))
