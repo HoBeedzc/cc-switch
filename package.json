@@ -1,5 +1,5 @@
 {
-  "name": "@hobeeliu/cc-switch",
+  "name": "@hobee/cc-switch",
   "version": "1.0.0",
   "description": "Claude Code configuration switcher - manage and switch between different Claude Code configurations",
   "main": "index.js",
@@ -21,15 +21,15 @@
     "cli",
     "tool"
   ],
-  "author": "hobee",
+  "author": "Hobee Liu",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hobee/cc-switch.git"
+    "url": "https://github.com/HoBeedzc/cc-switch.git"
   },
-  "homepage": "https://github.com/hobee/cc-switch#readme",
+  "homepage": "https://github.com/HoBeedzc/cc-switch#readme",
   "bugs": {
-    "url": "https://github.com/hobee/cc-switch/issues"
+    "url": "https://github.com/HoBeedzc/cc-switch/issues"
   },
   "os": [
     "darwin",
@@ -44,9 +44,7 @@
     "bin/",
     "scripts/",
     "README.md",
+    "README.zh.md",
     "LICENSE"
-  ],
-  "engines": {
-    "node": ">=14.0.0"
-  }
+  ]
 }
