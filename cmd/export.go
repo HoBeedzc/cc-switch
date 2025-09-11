@@ -35,6 +35,7 @@ Examples:
 
   # Export current profile
   cc-switch export --current -o current-config.ccx
+  cc-switch export -c -o current-config.ccx
 
   # Interactive password input (recommended for security)
   cc-switch export default -o backup.ccx`,
@@ -144,7 +145,7 @@ func init() {
 	exportCmd.Flags().StringVarP(&exportOutput, "output", "o", "", "Output file path (required)")
 	exportCmd.Flags().StringVarP(&exportPassword, "password", "p", "", "Encryption password (prompt if not provided)")
 	exportCmd.Flags().BoolVar(&exportAll, "all", false, "Export all profiles")
-	exportCmd.Flags().BoolVar(&exportCurrent, "current", false, "Export current profile")
+	exportCmd.Flags().BoolVarP(&exportCurrent, "current", "c", false, "Export current profile")
 
 	exportCmd.MarkFlagRequired("output")
 }
