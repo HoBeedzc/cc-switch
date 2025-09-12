@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# GitHub发布脚本 - 将多个commit压缩成单个版本commit推送到GitHub
+# GitHub发布脚本 - 将多个commit压缩成单个版本commit推送到GitHub，并创建tag触发自动发布
 # 用法: ./scripts/release-to-github.sh "v1.1.0" "Release description" [github-email]
 
 if [ $# -lt 2 ]; then
@@ -58,6 +58,12 @@ git commit -m "$MESSAGE"
 echo "📤 推送到GitHub..."
 git push github $BRANCH_NAME:main --force
 
+# 创建并推送tag以触发自动发布
+echo "🏷️  创建tag: $VERSION"
+git tag -a $VERSION -m "$MESSAGE"
+echo "📤 推送tag到GitHub..."
+git push github $VERSION
+
 # 清理临时分支
 echo "🧹 清理临时分支..."
 git checkout main
@@ -70,4 +76,7 @@ if [ -n "$GITHUB_EMAIL" ]; then
 fi
 
 echo "✅ 成功发布 $VERSION 到GitHub!"
-echo "🔗 查看: https://github.com/HoBeedzc/cc-switch"
+echo "🚀 GitHub Actions已触发，正在自动构建和发布..."
+echo "🔗 查看仓库: https://github.com/HoBeedzc/cc-switch"
+echo "📦 查看Actions进度: https://github.com/HoBeedzc/cc-switch/actions"
+echo "📋 发布完成后可查看: https://github.com/HoBeedzc/cc-switch/releases"
