@@ -79,7 +79,9 @@ rebuild_github_main() {
             commit_msg="$commit_msg: $tag_msg"
         fi
         
-        git commit -m "$commit_msg" > /dev/null 2>&1 || true
+        # 为github分支指定特定的用户信息提交
+        git -c user.name="Hobee" -c user.email="Hobee.Liu@gmail.com" \
+            commit -m "$commit_msg" > /dev/null 2>&1 || true
         log_success "已添加 $tag"
     done
     
