@@ -1,5 +1,5 @@
 {
-  "name": "@hobee/cc-switch",
+  "name": "@hobeeliu/cc-switch",
   "version": "1.0.1",
   "description": "Claude Code configuration switcher - manage and switch between different Claude Code configurations",
   "main": "index.js",
