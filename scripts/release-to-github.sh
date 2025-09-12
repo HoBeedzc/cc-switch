@@ -1,19 +1,30 @@
 #!/bin/bash
 
 # GitHub发布脚本 - 将多个commit压缩成单个版本commit推送到GitHub
-# 用法: ./scripts/release-to-github.sh "v1.1.0" "Release description"
+# 用法: ./scripts/release-to-github.sh "v1.1.0" "Release description" [github-email]
 
-if [ $# -ne 2 ]; then
-    echo "用法: $0 <版本号> <发布说明>"
-    echo "例如: $0 'v1.1.0' 'Release v1.1.0: 新功能和bug修复'"
+if [ $# -lt 2 ]; then
+    echo "用法: $0 <版本号> <发布说明> [GitHub邮箱]"
+    echo "例如: $0 'v1.1.0' 'Release v1.1.0: 新功能和bug修复' 'your-github@example.com'"
     exit 1
 fi
 
 VERSION=$1
 MESSAGE=$2
+GITHUB_EMAIL=${3:-""}
 BRANCH_NAME="github-release-temp"
 
+# 保存当前邮箱设置
+CURRENT_EMAIL=$(git config user.email)
+CURRENT_NAME=$(git config user.name)
+
 echo "🚀 准备发布到GitHub: $VERSION"
+
+# 如果提供了GitHub邮箱，临时切换
+if [ -n "$GITHUB_EMAIL" ]; then
+    echo "📧 切换到GitHub邮箱: $GITHUB_EMAIL"
+    git config user.email "$GITHUB_EMAIL"
+fi
 
 # 检查是否有未提交的更改
 if [[ -n $(git status --porcelain) ]]; then
@@ -51,6 +62,12 @@ git push github $BRANCH_NAME:main --force
 echo "🧹 清理临时分支..."
 git checkout main
 git branch -D $BRANCH_NAME
+
+# 恢复原邮箱设置
+if [ -n "$GITHUB_EMAIL" ]; then
+    echo "🔄 恢复邮箱设置: $CURRENT_EMAIL"
+    git config user.email "$CURRENT_EMAIL"
+fi
 
 echo "✅ 成功发布 $VERSION 到GitHub!"
 echo "🔗 查看: https://github.com/HoBeedzc/cc-switch"
