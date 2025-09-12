@@ -1,6 +1,6 @@
 {
   "name": "@hobee/cc-switch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Claude Code configuration switcher - manage and switch between different Claude Code configurations",
   "main": "index.js",
   "bin": {
