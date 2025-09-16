@@ -76,6 +76,14 @@ cc-switch use --restore
 ```
 从空配置模式恢复到进入空配置模式之前活动的配置。
 
+#### 刷新当前配置
+```bash
+cc-switch use --refresh
+# 或
+cc-switch use -f
+```
+通过重新应用来刷新当前配置。这在手动编辑配置文件后很有用，可确保更改正确应用。
+
 #### 交互模式
 ```bash
 cc-switch use
@@ -297,6 +305,9 @@ cc-switch use --restore
 # 交互模式进行选择
 cc-switch use
 
+# 手动编辑后刷新当前配置
+cc-switch use --refresh
+
 # 显示当前配置
 cc-switch current
 
@@ -381,6 +392,7 @@ cc-switch edit <名称>
 | `use -p, --previous` | 切换到上一个配置 |
 | `use -e, --empty` | 进入空配置模式（禁用配置） |
 | `use --restore` | 从空配置模式恢复到之前的配置 |
+| `use -f, --refresh` | 刷新当前配置（重新应用） |
 | `use -i, --interactive` | 进入交互选择模式 |
 | `cp <源> <目标>` | 复制配置 |
 | `cp -t <源> <目标>` | 复制模板 |
