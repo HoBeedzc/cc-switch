@@ -24,6 +24,7 @@ Modes:
 - Previous: cc-switch use -p or cc-switch use --previous
 - Empty Mode: cc-switch use -e or cc-switch use --empty
 - Restore: cc-switch use -r or cc-switch use --restore
+- Refresh: cc-switch use -f or cc-switch use --refresh
 
 Options:
 - Launch Claude Code: Add -l or --launch to automatically launch Claude Code CLI after switching
@@ -31,7 +32,8 @@ Options:
 The interactive mode allows you to browse and select configurations with arrow keys.
 The previous mode switches to the last used configuration.
 The empty mode temporarily removes all configurations.
-The restore mode restores from empty mode to the previous configuration.`,
+The restore mode restores from empty mode to the previous configuration.
+The refresh mode re-applies the current configuration (useful after manual edits).`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkClaudeConfig(); err != nil {
@@ -49,6 +51,7 @@ The restore mode restores from empty mode to the previous configuration.`,
 		previousFlag, _ := cmd.Flags().GetBool("previous")
 		emptyFlag, _ := cmd.Flags().GetBool("empty")
 		restoreFlag, _ := cmd.Flags().GetBool("restore")
+		refreshFlag, _ := cmd.Flags().GetBool("refresh")
 		launchFlag, _ := cmd.Flags().GetBool("launch")
 
 		// Validate flag combinations
@@ -62,6 +65,9 @@ The restore mode restores from empty mode to the previous configuration.`,
 		if restoreFlag {
 			flagCount++
 		}
+		if refreshFlag {
+			flagCount++
+		}
 		if len(args) > 0 {
 			flagCount++
 		}
@@ -70,13 +76,13 @@ The restore mode restores from empty mode to the previous configuration.`,
 			return fmt.Errorf("cannot use multiple operation flags together")
 		}
 
-		if (previousFlag || emptyFlag || restoreFlag) && interactiveFlag {
+		if (previousFlag || emptyFlag || restoreFlag || refreshFlag) && interactiveFlag {
 			return fmt.Errorf("cannot use operation flags with -i/--interactive")
 		}
 
 		// Create UI provider based on mode
 		var uiProvider ui.UIProvider
-		if !previousFlag && !emptyFlag && !restoreFlag && ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
+		if !previousFlag && !emptyFlag && !restoreFlag && !refreshFlag && ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
 			uiProvider = ui.NewInteractiveUI()
 		} else {
 			uiProvider = ui.NewCLIUI()
@@ -89,6 +95,10 @@ The restore mode restores from empty mode to the previous configuration.`,
 
 		if restoreFlag {
 			return handleRestoreMode(configHandler, uiProvider, launchFlag)
+		}
+
+		if refreshFlag {
+			return handleRefreshMode(configHandler, uiProvider, launchFlag)
 		}
 
 		if previousFlag {
@@ -321,6 +331,48 @@ func handleRestoreMode(configHandler handler.ConfigHandler, uiProvider ui.UIProv
 	return nil
 }
 
+// handleRefreshMode handles refreshing the current configuration
+func handleRefreshMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, launchCode bool) error {
+	// Check if in empty mode
+	if configHandler.IsEmptyMode() {
+		uiProvider.ShowWarning("Cannot refresh in empty mode. Use 'cc-switch use <profile>' to switch to a specific configuration")
+		return nil
+	}
+
+	// Get current configuration
+	currentName, err := configHandler.GetCurrentConfig()
+	if err != nil {
+		uiProvider.ShowError(fmt.Errorf("failed to get current configuration: %w", err))
+		return err
+	}
+
+	// Check if there's a current configuration
+	if currentName == "" {
+		uiProvider.ShowWarning("No current configuration to refresh. Use 'cc-switch use <profile>' to switch to a specific configuration")
+		return nil
+	}
+
+	// Show refresh message
+	uiProvider.ShowInfo("Refreshing configuration '%s'...", currentName)
+
+	// Re-apply the current configuration
+	if err := configHandler.UseConfig(currentName); err != nil {
+		uiProvider.ShowError(fmt.Errorf("failed to refresh configuration '%s': %w", currentName, err))
+		return err
+	}
+
+	uiProvider.ShowSuccess("Configuration '%s' refreshed successfully", currentName)
+
+	// Launch Claude Code if requested
+	if launchCode {
+		if err := launchClaudeCode(uiProvider); err != nil {
+			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
+		}
+	}
+
+	return nil
+}
+
 // launchClaudeCode launches Claude Code CLI with appropriate error handling
 func launchClaudeCode(uiProvider ui.UIProvider) error {
 	// Try to find Claude Code CLI executable
@@ -414,5 +466,6 @@ func init() {
 	useCmd.Flags().BoolP("previous", "p", false, "Switch to previous configuration")
 	useCmd.Flags().BoolP("empty", "e", false, "Enable empty mode (remove settings)")
 	useCmd.Flags().BoolP("restore", "r", false, "Restore from empty mode to previous configuration")
+	useCmd.Flags().BoolP("refresh", "f", false, "Refresh current configuration (re-apply)")
 	useCmd.Flags().BoolP("launch", "l", false, "Launch Claude Code CLI after switching")
 }
