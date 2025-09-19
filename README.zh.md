@@ -11,7 +11,7 @@
 通过 npm 全局安装：
 
 ```bash
-npm install -g cc-switch
+npm install -g @hobeeliu/cc-switch
 ```
 
 ### 使用方法

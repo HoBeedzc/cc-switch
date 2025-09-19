@@ -11,7 +11,7 @@ A command-line tool for managing and switching between different Claude Code con
 Install globally via npm:
 
 ```bash
-npm install -g cc-switch
+npm install -g @hobeeliu/cc-switch
 ```
 
 ### Usage
