@@ -2,6 +2,7 @@
 /bin/cc-switch*
 !bin/cc-switch.js
 dist/
+scripts/github-release.sh
 
 # Go 相关
 *.exe
