@@ -11,15 +11,15 @@ import (
 )
 
 var (
-    newTemplate    string
-    newInteractive bool
-    newUse         bool
+	newTemplate    string
+	newInteractive bool
+	newUse         bool
 )
 
 var newCmd = &cobra.Command{
-    Use:   "new <name>",
-    Short: "Create a new configuration",
-    Long: `Create a new configuration with template structure ready for customization.
+	Use:   "new <name>",
+	Short: "Create a new configuration",
+	Long: `Create a new configuration with template structure ready for customization.
 
 You can specify a template to use when creating the configuration:
 - Default template: cc-switch new <name>
@@ -91,25 +91,25 @@ Use --use to automatically switch to the newly created configuration after creat
 			}
 		}
 
-        color.Green("✓ Configuration '%s' created successfully from template '%s'", name, templateName)
-        if newInteractive {
-            fmt.Printf("All template fields have been filled with your input.\n")
-        } else {
-            fmt.Printf("Use 'cc-switch edit %s' to customize the configuration.\n", name)
-        }
+		color.Green("✓ Configuration '%s' created successfully from template '%s'", name, templateName)
+		if newInteractive {
+			fmt.Printf("All template fields have been filled with your input.\n")
+		} else {
+			fmt.Printf("Use 'cc-switch edit %s' to customize the configuration.\n", name)
+		}
 
-        // 如果指定了 --use，则创建后立即切换到新配置
-        if newUse {
-            if err := cm.UseProfile(name); err != nil {
-                return fmt.Errorf("failed to switch to new configuration: %w", err)
-            }
-            color.Green("✓ Switched to configuration '%s'", name)
-        } else {
-            fmt.Printf("Use 'cc-switch use %s' to switch to this configuration.\n", name)
-        }
+		// 如果指定了 --use，则创建后立即切换到新配置
+		if newUse {
+			if err := cm.UseProfile(name); err != nil {
+				return fmt.Errorf("failed to switch to new configuration: %w", err)
+			}
+			color.Green("✓ Switched to configuration '%s'", name)
+		} else {
+			fmt.Printf("Use 'cc-switch use %s' to switch to this configuration.\n", name)
+		}
 
-        return nil
-    },
+		return nil
+	},
 }
 
 // isInteractiveMode checks if we should use interactive UI
@@ -119,7 +119,7 @@ func isInteractiveMode() bool {
 }
 
 func init() {
-    newCmd.Flags().StringVarP(&newTemplate, "template", "t", "", "Template to use for new configuration (default: default)")
-    newCmd.Flags().BoolVarP(&newInteractive, "interactive", "i", false, "Interactive template field input mode")
-    newCmd.Flags().BoolVarP(&newUse, "use", "u", false, "Switch to the new configuration after creation")
+	newCmd.Flags().StringVarP(&newTemplate, "template", "t", "", "Template to use for new configuration (default: default)")
+	newCmd.Flags().BoolVarP(&newInteractive, "interactive", "i", false, "Interactive template field input mode")
+	newCmd.Flags().BoolVarP(&newUse, "use", "u", false, "Switch to the new configuration after creation")
 }

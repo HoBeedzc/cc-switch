@@ -314,7 +314,7 @@ func (ui *interactiveUI) ConfirmTemplateCreation(fields []config.TemplateField) 
 	prompt := promptui.Prompt{
 		Label:     "Continue with interactive template field input?",
 		IsConfirm: true,
-		Default:   "y",
+		Default:   "n",
 	}
 
 	result, err := prompt.Run()
@@ -324,7 +324,7 @@ func (ui *interactiveUI) ConfirmTemplateCreation(fields []config.TemplateField) 
 
 	result = strings.ToLower(strings.TrimSpace(result))
 	if result == "" {
-		return true // 默认值：继续交互式创建
+		return false // 默认值：不继续（退出）
 	}
 	return result == "y" || result == "yes" || result == "true"
 }
