@@ -9,8 +9,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
+)
+
+const (
+	// Version should match the version in package.json
+	clientVersion = "1.0.5"
+	userAgent     = "claude-code/" + clientVersion
 )
 
 // APITester handles API connectivity testing for Claude Code configurations
@@ -92,7 +101,7 @@ func (t *APITester) TestAPIConnectivity(profileName string, options TestOptions)
 
 		// Only test chat endpoint if not quick mode and auth is working
 		if len(result.Tests) > 0 && result.Tests[0].Status == "success" {
-			result.Tests = append(result.Tests, t.testChatEndpoint(credentials))
+			result.Tests = append(result.Tests, t.testChatEndpoint(profileName, credentials))
 		}
 	}
 
@@ -190,6 +199,7 @@ func (t *APITester) testBasicConnectivity(credentials *APICredentials) EndpointT
 	if err != nil {
 		return EndpointTest{
 			Endpoint:     credentials.BaseURL,
+			FullURL:      credentials.BaseURL,
 			Method:       "HEAD",
 			Status:       "failed",
 			ResponseTime: time.Since(start),
@@ -202,6 +212,7 @@ func (t *APITester) testBasicConnectivity(credentials *APICredentials) EndpointT
 
 	test := EndpointTest{
 		Endpoint:     credentials.BaseURL,
+		FullURL:      credentials.BaseURL,
 		Method:       "HEAD",
 		ResponseTime: duration,
 	}
@@ -237,6 +248,7 @@ func (t *APITester) testAuthentication(credentials *APICredentials) EndpointTest
 	if err != nil {
 		return EndpointTest{
 			Endpoint:     endpoint,
+			FullURL:      url,
 			Method:       "GET",
 			Status:       "failed",
 			ResponseTime: time.Since(start),
@@ -245,7 +257,7 @@ func (t *APITester) testAuthentication(credentials *APICredentials) EndpointTest
 	}
 
 	req.Header.Set("Authorization", "Bearer "+credentials.APIKey)
-	req.Header.Set("User-Agent", "cc-switch-test/1.0")
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("anthropic-version", credentials.Version)
 
 	resp, err := t.httpClient.Do(req)
@@ -253,6 +265,7 @@ func (t *APITester) testAuthentication(credentials *APICredentials) EndpointTest
 
 	test := EndpointTest{
 		Endpoint:     endpoint,
+		FullURL:      url,
 		Method:       "GET",
 		ResponseTime: duration,
 	}
@@ -301,7 +314,8 @@ func (t *APITester) testModelsEndpoint(credentials *APICredentials) EndpointTest
 	if err != nil {
 		return EndpointTest{
 			Endpoint:     endpoint,
-			Method:       "GET",
+			FullURL:      url,
+			Method:       "GET-MODELS", // Different method to distinguish from auth test
 			Status:       "failed",
 			ResponseTime: time.Since(start),
 			Error:        fmt.Sprintf("Failed to create request: %v", err),
@@ -309,7 +323,7 @@ func (t *APITester) testModelsEndpoint(credentials *APICredentials) EndpointTest
 	}
 
 	req.Header.Set("Authorization", "Bearer "+credentials.APIKey)
-	req.Header.Set("User-Agent", "cc-switch-test/1.0")
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("anthropic-version", credentials.Version)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -321,7 +335,8 @@ func (t *APITester) testModelsEndpoint(credentials *APICredentials) EndpointTest
 
 	test := EndpointTest{
 		Endpoint:     endpoint,
-		Method:       "GET",
+		FullURL:      url,
+		Method:       "GET-MODELS", // Different method to distinguish from auth test
 		ResponseTime: duration,
 	}
 
@@ -365,82 +380,125 @@ func (t *APITester) testModelsEndpoint(credentials *APICredentials) EndpointTest
 	return test
 }
 
-// testChatEndpoint tests the chat/messages endpoint with a minimal request
-func (t *APITester) testChatEndpoint(credentials *APICredentials) EndpointTest {
+// testChatEndpoint tests the chat endpoint using real Claude Code CLI
+func (t *APITester) testChatEndpoint(profileName string, credentials *APICredentials) EndpointTest {
 	start := time.Now()
 
 	endpoint := "/v1/messages"
-	url := strings.TrimSuffix(credentials.BaseURL, "/") + endpoint
-
-	// Create minimal test payload
-	payload := map[string]interface{}{
-		"model": "claude-3-5-haiku-20241022", // Use fastest/cheapest model for testing
-		"messages": []map[string]string{
-			{"role": "user", "content": "Hi"},
-		},
-		"max_tokens": 1, // Minimal token usage
-	}
-
-	jsonPayload, err := json.Marshal(payload)
-	if err != nil {
-		return EndpointTest{
-			Endpoint:     endpoint,
-			Method:       "POST",
-			Status:       "failed",
-			ResponseTime: time.Since(start),
-			Error:        fmt.Sprintf("Failed to create payload: %v", err),
-		}
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		return EndpointTest{
-			Endpoint:     endpoint,
-			Method:       "POST",
-			Status:       "failed",
-			ResponseTime: time.Since(start),
-			Error:        fmt.Sprintf("Failed to create request: %v", err),
-		}
-	}
-
-	req.Header.Set("Authorization", "Bearer "+credentials.APIKey)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("anthropic-version", credentials.Version)
-	req.Header.Set("User-Agent", "claude-cli/1.0.72 (external, cli)")
-	req.Header.Set("X-App", "cli")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	resp, err := t.httpClient.Do(req)
-	duration := time.Since(start)
+	fullURL := strings.TrimSuffix(credentials.BaseURL, "/") + endpoint
 
 	test := EndpointTest{
-		Endpoint:     endpoint,
-		Method:       "POST",
-		ResponseTime: duration,
+		Endpoint: endpoint,
+		FullURL:  fullURL,
+		Method:   "claude-cli",
+	}
+
+	// Check if claude command is available
+	claudePath, err := t.findClaudeCommand()
+	if err != nil {
+		test.Status = "failed"
+		test.Error = fmt.Sprintf("Claude CLI not found: %v", err)
+		test.ResponseTime = time.Since(start)
+		return test
+	}
+
+	// Get the actual configuration file path for the profile being tested
+	configPath, err := t.getConfigFilePath(profileName)
+	if err != nil {
+		test.Status = "failed"
+		test.Error = fmt.Sprintf("Failed to get config file path: %v", err)
+		test.ResponseTime = time.Since(start)
+		return test
+	}
+
+	// Execute claude command with 30s timeout using the actual config file
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, claudePath, "-p", "Hi", "--settings", configPath)
+
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	test.ResponseTime = time.Since(start)
+
+	if ctx.Err() == context.DeadlineExceeded {
+		test.Status = "timeout"
+		test.Error = "Command timed out after 30 seconds"
+		return test
 	}
 
 	if err != nil {
 		test.Status = "failed"
-		test.Error = err.Error()
+		stderrStr := stderr.String()
+		if stderrStr != "" {
+			test.Error = fmt.Sprintf("Command failed: %v - %s", err, stderrStr)
+		} else {
+			test.Error = fmt.Sprintf("Command failed: %v", err)
+		}
 		return test
 	}
-	defer resp.Body.Close()
 
-	test.StatusCode = resp.StatusCode
-
-	if resp.StatusCode == 200 {
-		test.Status = "success"
-		test.Details = "Chat endpoint functional"
-	} else {
+	// Check if we got a response
+	output := stdout.String()
+	if output == "" {
 		test.Status = "failed"
-		body, _ := io.ReadAll(resp.Body)
-		test.Error = fmt.Sprintf("Status %d: %s", resp.StatusCode, string(body))
+		test.Error = "No output from Claude CLI"
+		return test
 	}
 
+	test.Status = "success"
+	test.Details = "Chat endpoint functional via Claude CLI"
 	return test
+}
+
+// findClaudeCommand locates the claude command in common locations
+func (t *APITester) findClaudeCommand() (string, error) {
+	// Try common locations for claude command
+	locations := []string{
+		"claude",                   // In PATH
+		"/usr/local/bin/claude",    // Common install location
+		"/opt/homebrew/bin/claude", // Homebrew on M1 Macs
+		"/usr/bin/claude",          // System location
+		"~/.local/bin/claude",      // User install
+	}
+
+	for _, location := range locations {
+		// Expand home directory if needed
+		if strings.HasPrefix(location, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				continue
+			}
+			location = filepath.Join(home, location[2:])
+		}
+
+		// Check if command exists and is executable
+		if _, err := exec.LookPath(location); err == nil {
+			return location, nil
+		}
+
+		// Also try direct path check
+		if _, err := os.Stat(location); err == nil {
+			return location, nil
+		}
+	}
+
+	return "", fmt.Errorf("claude command not found in common locations")
+}
+
+// getConfigFilePath returns the full path to the configuration file for the given profile
+func (t *APITester) getConfigFilePath(profileName string) (string, error) {
+	// Use GetProfileContent to verify the profile exists and get the path
+	_, profile, err := t.configManager.GetProfileContent(profileName)
+	if err != nil {
+		return "", fmt.Errorf("failed to get profile content: %v", err)
+	}
+
+	return profile.Path, nil
 }
 
 // aggregateResults determines overall connectivity status from individual test results
@@ -449,15 +507,48 @@ func (t *APITester) aggregateResults(tests []EndpointTest) bool {
 		return false
 	}
 
-	// For basic connectivity, we just need one test to pass
+	// Count different types of results
 	successCount := 0
+	timeoutCount := 0
+	failureCount := 0
+
+	// Specific test status tracking
+	authSuccess := false
+	chatSuccess := true // Assume true if no chat test
+
 	for _, test := range tests {
-		if test.Status == "success" {
+		switch test.Status {
+		case "success":
 			successCount++
+			// Track authentication success specifically
+			if test.Endpoint == "/v1/models" && test.Method == "GET" {
+				authSuccess = true
+			}
+			// Track chat endpoint success
+			if test.Endpoint == "/v1/messages" {
+				chatSuccess = true
+			}
+		case "timeout":
+			timeoutCount++
+			// Chat endpoint timeout is critical
+			if test.Endpoint == "/v1/messages" {
+				chatSuccess = false
+			}
+		case "failed":
+			failureCount++
+			// Chat endpoint failure is critical
+			if test.Endpoint == "/v1/messages" {
+				chatSuccess = false
+			}
 		}
 	}
 
-	// Consider configuration connectable if at least one critical test passes
-	// (authentication or basic connectivity)
-	return successCount > 0
+	// Configuration is functional only if:
+	// 1. Authentication succeeded
+	// 2. No timeouts occurred
+	// 3. Chat endpoint succeeded (if tested)
+	// 4. At least 50% of tests passed
+	minSuccessRate := float64(successCount)/float64(len(tests)) >= 0.5
+
+	return authSuccess && timeoutCount == 0 && chatSuccess && minSuccessRate
 }

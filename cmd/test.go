@@ -252,14 +252,22 @@ func formatTestDescription(test handler.EndpointTest) string {
 	case "/v1/models":
 		if test.Method == "GET" {
 			baseDesc = "Authentication Test"
+		} else if test.Method == "GET-MODELS" {
+			baseDesc = "Models Endpoint"
 		} else {
 			baseDesc = "Models Endpoint"
 		}
 	case "/v1/messages":
-		baseDesc = "Chat Endpoint"
+		if test.Method == "claude-cli" {
+			baseDesc = "Chat Endpoint (Claude CLI)"
+		} else {
+			baseDesc = "Chat Endpoint"
+		}
 	default:
 		if test.Method == "HEAD" {
 			baseDesc = "Basic Connectivity"
+		} else if test.Method == "claude-cli" {
+			baseDesc = "Claude CLI Test"
 		} else {
 			baseDesc = fmt.Sprintf("%s %s", test.Method, test.Endpoint)
 		}
@@ -273,7 +281,14 @@ func formatTestDescription(test handler.EndpointTest) string {
 
 func formatVerboseTestDetails(test handler.EndpointTest) string {
 	var details []string
-	details = append(details, fmt.Sprintf("  Endpoint: %s", test.Endpoint))
+
+	// Show full URL in verbose mode if available, otherwise show endpoint
+	if test.FullURL != "" {
+		details = append(details, fmt.Sprintf("  Endpoint: %s", test.FullURL))
+	} else {
+		details = append(details, fmt.Sprintf("  Endpoint: %s", test.Endpoint))
+	}
+
 	details = append(details, fmt.Sprintf("  Method: %s", test.Method))
 	if test.StatusCode > 0 {
 		details = append(details, fmt.Sprintf("  Status Code: %d", test.StatusCode))
