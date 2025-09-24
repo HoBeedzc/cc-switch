@@ -1,17 +1,15 @@
 {
-  "name": "@hobeeliu/cc-switch",
+  "name": "cc-switch-dev",
   "version": "1.0.5",
-  "description": "Claude Code configuration switcher - manage and switch between different Claude Code configurations",
-  "main": "index.js",
-  "bin": {
-    "cc-switch": "./bin/cc-switch.js"
-  },
+  "description": "Claude Code configuration switcher - Development workspace",
+  "private": true,
   "scripts": {
-    "postinstall": "node scripts/install.js",
-    "build": "npm run build:go",
-    "build:go": "bash scripts/build.sh",
-    "test": "go test ./...",
-    "clean": "rm -rf bin/"
+    "dev": "go run .",
+    "test": "go test -v ./...",
+    "fmt": "gofmt -s -w .",
+    "vet": "go vet ./...",
+    "prepare": "node npm/scripts/prepare-packages.js",
+    "clean": "rm -rf npm-publish/ dist/"
   },
   "keywords": [
     "claude",
@@ -30,21 +28,5 @@
   "homepage": "https://github.com/HoBeedzc/cc-switch#readme",
   "bugs": {
     "url": "https://github.com/HoBeedzc/cc-switch/issues"
-  },
-  "os": [
-    "darwin",
-    "linux",
-    "win32"
-  ],
-  "cpu": [
-    "x64",
-    "arm64"
-  ],
-  "files": [
-    "bin/",
-    "scripts/",
-    "README.md",
-    "README.zh.md",
-    "LICENSE"
-  ]
+  }
 }
