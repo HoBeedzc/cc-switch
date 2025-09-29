@@ -170,6 +170,12 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 				// Check if already current
 				if selection.Profile.IsCurrent && !configHandler.IsEmptyMode() {
 					uiProvider.ShowWarning("Configuration '%s' is already active", selection.Profile.Name)
+					// Still allow launching Claude Code if requested
+					if launchCode {
+						if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
+							uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
+						}
+					}
 					return nil
 				}
 				targetName = selection.Profile.Name
@@ -186,6 +192,12 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 			// Check if already current
 			if selected.IsCurrent && !configHandler.IsEmptyMode() {
 				uiProvider.ShowWarning("Configuration '%s' is already active", selected.Name)
+				// Still allow launching Claude Code if requested
+				if launchCode {
+					if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
+						uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
+					}
+				}
 				return nil
 			}
 
@@ -201,6 +213,12 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 		// Handle specific error messages
 		if err.Error() == fmt.Sprintf("configuration '%s' is already active", targetName) {
 			uiProvider.ShowWarning("Configuration '%s' is already active", targetName)
+			// Still allow launching Claude Code if requested
+			if launchCode {
+				if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
+					uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
+				}
+			}
 			return nil
 		}
 		uiProvider.ShowError(err)
