@@ -1,6 +1,6 @@
 {
   "name": "@hobeeliu/cc-switch",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Claude Code configuration switcher - manage and switch between different Claude Code configurations",
   "main": "index.js",
   "bin": {
