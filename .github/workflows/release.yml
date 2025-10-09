@@ -3,192 +3,131 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*.*.*'
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   build:
-    name: Build for ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - target: linux-x64
-            os: ubuntu-22.04
-            goos: linux
-            goarch: amd64
-            name: cc-switch-linux-x64.tar.gz
-          - target: linux-arm64
-            os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            name: cc-switch-linux-arm64.tar.gz
-          - target: windows-x64
-            os: ubuntu-latest
-            goos: windows
-            goarch: amd64
-            name: cc-switch-windows-x64.zip
-          - target: darwin-x64
-            os: macos-latest
-            goos: darwin
-            goarch: amd64
-            name: cc-switch-darwin-x64.tar.gz
-          - target: darwin-arm64
-            os: macos-latest
-            goos: darwin
-            goarch: arm64
-            name: cc-switch-darwin-arm64.tar.gz
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.23'
-
-    - name: Extract version
-      id: version
-      run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-    - name: Build binary
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 0
-      run: |
-        go build -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }}" -o dist/cc-switch${{ matrix.goos == 'windows' && '.exe' || '' }} .
-
-    - name: Package Linux/macOS
-      if: matrix.goos != 'windows'
-      run: |
-        mkdir -p dist
-        cd dist
-        tar czf ../${{ matrix.name }} cc-switch
-
-    - name: Package Windows
-      if: matrix.goos == 'windows'
-      run: |
-        mkdir -p dist
-        cd dist
-        zip ../${{ matrix.name }} cc-switch.exe
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.name }}
-        path: ${{ matrix.name }}
-
-  release:
-    name: Create Release
     runs-on: ubuntu-latest
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: artifacts/*/*
-        generate_release_notes: true
-        draft: false
-        prerelease: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
 
-    - name: Setup Node.js for NPM
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        registry-url: 'https://registry.npmjs.org'
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-    - name: Extract binaries from archives
-      run: |
-        mkdir -p extracted
+      - name: Build binaries
+        run: |
+          # 创建输出目录
+          mkdir -p bin
+          
+          # 构建不同平台的二进制文件
+          GOOS=linux GOARCH=amd64 go build -o bin/cc-switch-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -o bin/cc-switch-linux-arm64 .
+          GOOS=darwin GOARCH=amd64 go build -o bin/cc-switch-darwin-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -o bin/cc-switch-darwin-arm64 .
+          GOOS=windows GOARCH=amd64 go build -o bin/cc-switch-windows-amd64.exe .
+          GOOS=windows GOARCH=arm64 go build -o bin/cc-switch-windows-arm64.exe .
+          
+          # 创建默认的可执行文件 (用于npm包)
+          cp bin/cc-switch-linux-amd64 bin/cc-switch
 
-        # macOS x64
-        tar -xzf artifacts/cc-switch-darwin-x64.tar.gz/cc-switch-darwin-x64.tar.gz -C extracted
-        mv extracted/cc-switch extracted/cc-switch-darwin-x64
+      - name: Create archives
+        run: |
+          cd bin
+          # 为每个平台创建压缩包
+          tar -czf cc-switch-linux-amd64.tar.gz cc-switch-linux-amd64
+          tar -czf cc-switch-linux-arm64.tar.gz cc-switch-linux-arm64
+          tar -czf cc-switch-darwin-amd64.tar.gz cc-switch-darwin-amd64
+          tar -czf cc-switch-darwin-arm64.tar.gz cc-switch-darwin-arm64
+          zip cc-switch-windows-amd64.zip cc-switch-windows-amd64.exe
+          zip cc-switch-windows-arm64.zip cc-switch-windows-arm64.exe
 
-        # macOS ARM64
-        tar -xzf artifacts/cc-switch-darwin-arm64.tar.gz/cc-switch-darwin-arm64.tar.gz -C extracted
-        mv extracted/cc-switch extracted/cc-switch-darwin-arm64
+      - name: Update package.json version
+        run: |
+          # 从git tag提取版本号（去掉v前缀）
+          VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $VERSION --no-git-tag-version
 
-        # Linux x64
-        tar -xzf artifacts/cc-switch-linux-x64.tar.gz/cc-switch-linux-x64.tar.gz -C extracted
-        mv extracted/cc-switch extracted/cc-switch-linux-x64
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: bin/
 
-        # Linux ARM64
-        tar -xzf artifacts/cc-switch-linux-arm64.tar.gz/cc-switch-linux-arm64.tar.gz -C extracted
-        mv extracted/cc-switch extracted/cc-switch-linux-arm64
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-        # Windows
-        unzip artifacts/cc-switch-windows-x64.zip/cc-switch-windows-x64.zip -d extracted
-        mv extracted/cc-switch.exe extracted/cc-switch-win32-x64.exe
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: binaries
+          path: bin/
 
-        # List extracted files
-        ls -la extracted/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.build.outputs.version }}
+          name: Release ${{ needs.build.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            bin/*.tar.gz
+            bin/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Prepare NPM packages
-      run: |
-        # Extract version from tag
-        VERSION=${GITHUB_REF#refs/tags/v}
+  npm-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-        # Prepare packages with version management
-        node npm/scripts/prepare-packages.js $VERSION
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
 
-        # Copy binaries to platform directories
-        cp extracted/cc-switch-darwin-x64 npm-publish/darwin-x64/cc-switch
-        cp extracted/cc-switch-darwin-arm64 npm-publish/darwin-arm64/cc-switch
-        cp extracted/cc-switch-linux-x64 npm-publish/linux-x64/cc-switch
-        cp extracted/cc-switch-linux-arm64 npm-publish/linux-arm64/cc-switch
-        cp extracted/cc-switch-win32-x64.exe npm-publish/win32-x64/cc-switch.exe
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: binaries
+          path: bin/
 
-        # Set executable permissions for Unix binaries
-        chmod +x npm-publish/darwin-x64/cc-switch
-        chmod +x npm-publish/darwin-arm64/cc-switch
-        chmod +x npm-publish/linux-x64/cc-switch
-        chmod +x npm-publish/linux-arm64/cc-switch
+      - name: Update package.json version
+        run: |
+          # 从git tag提取版本号（去掉v前缀）
+          VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $VERSION --no-git-tag-version
 
-        # Verify packages
-        echo "Package structure:"
-        find npm-publish -name "package.json" -exec echo "=== {} ===" \; -exec head -5 {} \;
+      - name: Make binaries executable
+        run: chmod +x bin/*
 
-    - name: Publish platform packages to NPM
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      run: |
-        # Publish platform packages first
-        for platform in darwin-x64 darwin-arm64 linux-x64 linux-arm64 win32-x64; do
-          echo "📦 Publishing @hobeeliu/cc-switch-$platform"
-          cd npm-publish/$platform
-          npm publish --access public
-          cd ../..
-          echo "✅ Published @hobeeliu/cc-switch-$platform"
-        done
-
-    - name: Wait for NPM registry
-      run: |
-        echo "⏳ Waiting for platform packages to be available on NPM..."
-        sleep 30
-
-    - name: Publish main package to NPM
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      run: |
-        cd npm-publish/main
-        echo "📦 Publishing @hobeeliu/cc-switch"
-        npm publish --access public
-        echo "✅ Published @hobeeliu/cc-switch"
-        echo ""
-        echo "🎉 NPM packages published successfully!"
-        echo "Install with: npm install -g @hobeeliu/cc-switch"
+      - name: Publish to NPM
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
