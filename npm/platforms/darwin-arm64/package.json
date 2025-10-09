@@ -1,0 +1,14 @@
+{
+  "name": "@hobeeliu/cc-switch-darwin-arm64",
+  "version": "0.0.0",
+  "description": "macOS arm64 binary for cc-switch",
+  "files": ["cc-switch"],
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HoBeedzc/cc-switch"
+  },
+  "author": "Hobee Liu",
+  "license": "MIT"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@hobeeliu/cc-switch-win32-x64",
+  "version": "0.0.0",
+  "description": "Windows x64 binary for cc-switch",
+  "files": ["cc-switch.exe"],
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HoBeedzc/cc-switch"
+  },
+  "author": "Hobee Liu",
+  "license": "MIT"
+}

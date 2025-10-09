@@ -1,0 +1,32 @@
+{
+  "name": "cc-switch-dev",
+  "version": "1.0.14",
+  "description": "Claude Code configuration switcher - Development workspace",
+  "private": true,
+  "scripts": {
+    "dev": "go run .",
+    "test": "go test -v ./...",
+    "fmt": "gofmt -s -w .",
+    "vet": "go vet ./...",
+    "prepare": "node npm/scripts/prepare-packages.js",
+    "clean": "rm -rf npm-publish/ dist/"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "configuration",
+    "switcher",
+    "cli",
+    "tool"
+  ],
+  "author": "Hobee Liu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HoBeedzc/cc-switch.git"
+  },
+  "homepage": "https://github.com/HoBeedzc/cc-switch#readme",
+  "bugs": {
+    "url": "https://github.com/HoBeedzc/cc-switch/issues"
+  }
+}
