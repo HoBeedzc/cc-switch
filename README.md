@@ -76,6 +76,14 @@ cc-switch use --restore
 ```
 Restores from empty mode to the previous configuration that was active before entering empty mode.
 
+#### Refresh Current Configuration
+```bash
+cc-switch use --refresh
+# or
+cc-switch use -f
+```
+Refreshes the current configuration by re-applying it. This is useful after manually editing configuration files to ensure changes are properly applied.
+
 #### Interactive Mode
 ```bash
 cc-switch use
@@ -297,6 +305,9 @@ cc-switch use --restore
 # Use interactive mode for selection
 cc-switch use
 
+# Refresh current configuration after manual edits
+cc-switch use --refresh
+
 # Show current configuration
 cc-switch current
 
@@ -381,6 +392,7 @@ Opens the configuration in your default text editor for modification.
 | `use -p, --previous` | Switch to previous configuration |
 | `use -e, --empty` | Enter empty mode (disable configurations) |
 | `use --restore` | Restore from empty mode to previous configuration |
+| `use -f, --refresh` | Refresh current configuration (re-apply) |
 | `use -i, --interactive` | Enter interactive selection mode |
 | `cp <source> <dest>` | Copy a configuration |
 | `cp -t <source> <dest>` | Copy a template |
