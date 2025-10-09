@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -876,6 +877,12 @@ func isFieldRequired(fieldName string) bool {
 func (cm *ConfigManager) DetectEmptyFields(content map[string]interface{}) []TemplateField {
 	var fields []TemplateField
 	cm.detectEmptyFieldsRecursive(content, "", &fields)
+
+	// 按照字段路径排序，确保顺序一致
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].Path < fields[j].Path
+	})
+
 	return fields
 }
 
