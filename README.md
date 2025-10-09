@@ -40,8 +40,12 @@ cc-switch new <name> --template <template>
 # Interactive template creation (fills template fields interactively)
 cc-switch new <name> -i
 cc-switch new <name> --interactive
+
+# Create and switch immediately after creation
+cc-switch new <name> -u
+cc-switch new <name> --use
 ```
-Creates a new configuration using template structure. The default template provides a basic structure, and interactive mode allows you to fill in template fields with guided prompts.
+Creates a new configuration using template structure. The default template provides a basic structure, and interactive mode allows you to fill in template fields with guided prompts. Use `--use` to automatically switch to the newly created configuration.
 
 #### Switch Configuration
 ```bash
@@ -260,6 +264,9 @@ cc-switch new personal -t company-template
 # Create configuration with interactive template filling
 cc-switch new dev-env -i
 
+# Create and switch immediately after creation
+cc-switch new staging -u
+
 # Switch to work configuration
 cc-switch use work
 
@@ -387,6 +394,7 @@ Opens the configuration in your default text editor for modification.
 | `new <name>` | Create a new configuration from default template |
 | `new <name> -t <template>` | Create a new configuration from specific template |
 | `new <name> -i, --interactive` | Create configuration with interactive template filling |
+| `new <name> -u, --use` | Create configuration and switch to it immediately |
 | `use <name>` | Switch to a configuration |
 | `use <name> -l, --launch` | Switch to a configuration and launch Claude Code CLI |
 | `use -p, --previous` | Switch to previous configuration |

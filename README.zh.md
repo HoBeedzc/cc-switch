@@ -40,8 +40,12 @@ cc-switch new <名称> --template <模板>
 # 交互式模板创建（交互式填写模板字段）
 cc-switch new <名称> -i
 cc-switch new <名称> --interactive
+
+# 创建并在创建后立即切换
+cc-switch new <名称> -u
+cc-switch new <名称> --use
 ```
-使用模板结构创建新配置。默认模板提供基本结构，交互模式允许通过引导提示填写模板字段。
+使用模板结构创建新配置。默认模板提供基本结构，交互模式允许通过引导提示填写模板字段。使用 `--use` 标志可在创建后自动切换到新配置。
 
 #### 切换配置
 ```bash
@@ -260,6 +264,9 @@ cc-switch new personal -t company-template
 # 交互式填写模板创建配置
 cc-switch new dev-env -i
 
+# 创建后立即切换
+cc-switch new staging -u
+
 # 切换到工作配置
 cc-switch use work
 
@@ -387,6 +394,7 @@ cc-switch edit <名称>
 | `new <名称>` | 从默认模板创建新配置 |
 | `new <名称> -t <模板>` | 从指定模板创建新配置 |
 | `new <名称> -i, --interactive` | 交互式填写模板创建配置 |
+| `new <名称> -u, --use` | 创建后立即切换到该配置 |
 | `use <名称>` | 切换到配置 |
 | `use <名称> -l, --launch` | 切换到配置并启动 Claude Code CLI |
 | `use -p, --previous` | 切换到上一个配置 |

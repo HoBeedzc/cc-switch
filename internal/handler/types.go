@@ -142,6 +142,7 @@ type APITestResult struct {
 // EndpointTest represents individual API endpoint test results
 type EndpointTest struct {
 	Endpoint     string        `json:"endpoint"`
+	FullURL      string        `json:"full_url,omitempty"`
 	Method       string        `json:"method"`
 	Status       string        `json:"status"` // "success", "failed", "timeout"
 	StatusCode   int           `json:"status_code"`

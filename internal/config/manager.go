@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -271,27 +272,12 @@ func (cm *ConfigManager) CreateProfileFromTemplateInteractive(name, templateName
 	// 收集用户输入
 	inputs := make(map[string]string)
 	for _, field := range emptyFields {
-		for {
-			value, err := ui.GetTemplateFieldInput(field)
-			if err != nil {
-				return fmt.Errorf("failed to get input for field '%s': %w", field.Name, err)
-			}
-
-			// 验证必填字段
-			if field.Required && value == "" {
-				return fmt.Errorf("field '%s' is required and cannot be empty", field.Name)
-			}
-
-			// 验证字段值格式
-			if err := validateFieldValue(field.Name, value); err != nil {
-				fmt.Printf("Validation error: %v\n", err)
-				fmt.Println("Please try again.")
-				continue // Retry input
-			}
-
-			inputs[field.Path] = value
-			break // Valid input, move to next field
+		value, err := ui.GetTemplateFieldInput(field)
+		if err != nil {
+			return fmt.Errorf("failed to get input for field '%s': %w", field.Name, err)
 		}
+
+		inputs[field.Path] = value
 	}
 
 	// 填充模板并创建配置
@@ -854,63 +840,6 @@ func (cm *ConfigManager) cleanupHistory() error {
 
 // Template Field Detection and Processing
 
-// FieldValidator defines a validation function for field values
-type FieldValidator func(value string) error
-
-// getFieldValidators returns validators for specific fields
-func getFieldValidators() map[string]FieldValidator {
-	return map[string]FieldValidator{
-		"ANTHROPIC_AUTH_TOKEN": validateAPIToken,
-		"OPENAI_API_KEY":       validateAPIToken,
-		"API_KEY":              validateAPIToken,
-		"TOKEN":                validateAPIToken,
-		"ANTHROPIC_BASE_URL":   validateURL,
-		"BASE_URL":             validateURL,
-		"ENDPOINT":             validateURL,
-	}
-}
-
-// validateAPIToken validates API token format
-func validateAPIToken(value string) error {
-	if value == "" {
-		return nil // Empty values are allowed for optional fields
-	}
-
-	if len(value) < 10 {
-		return fmt.Errorf("API token appears to be too short (minimum 10 characters)")
-	}
-
-	// Check for common API token patterns
-	if strings.HasPrefix(value, "sk-") || strings.HasPrefix(value, "sk-ant-") {
-		return nil // Valid token patterns
-	}
-
-	// For other tokens, just check it's not obviously invalid
-	if strings.Contains(value, " ") {
-		return fmt.Errorf("API token should not contain spaces")
-	}
-
-	return nil
-}
-
-// validateURL validates URL format
-func validateURL(value string) error {
-	if value == "" {
-		return nil // Empty values are allowed for optional fields
-	}
-
-	// Basic URL validation
-	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return fmt.Errorf("URL must start with http:// or https://")
-	}
-
-	if strings.Contains(value, " ") {
-		return fmt.Errorf("URL should not contain spaces")
-	}
-
-	return nil
-}
-
 // getFieldDescription 获取字段的用户友好描述
 func getFieldDescription(fieldName string) string {
 	descriptions := map[string]string{
@@ -944,19 +873,16 @@ func isFieldRequired(fieldName string) bool {
 	return requiredFields[fieldName]
 }
 
-// validateFieldValue 验证字段值
-func validateFieldValue(fieldName, value string) error {
-	validators := getFieldValidators()
-	if validator, exists := validators[fieldName]; exists {
-		return validator(value)
-	}
-	return nil
-}
-
 // DetectEmptyFields 检测模板中的空字符串字段
 func (cm *ConfigManager) DetectEmptyFields(content map[string]interface{}) []TemplateField {
 	var fields []TemplateField
 	cm.detectEmptyFieldsRecursive(content, "", &fields)
+
+	// 按照字段路径排序，确保顺序一致
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].Path < fields[j].Path
+	})
+
 	return fields
 }
 

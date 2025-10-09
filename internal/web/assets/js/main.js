@@ -360,20 +360,60 @@ class CCSwitch {
                 body: JSON.stringify({
                     profile: profile,
                     quick: quick,
-                    timeout: 10
+                    timeout: 45
                 })
             });
 
             const result = response.data;
-            
+
+            // Build detailed test results display
+            let testDetailsHTML = '';
+            if (result.tests && result.tests.length > 0) {
+                testDetailsHTML = result.tests.map(test => {
+                    const statusIcon = test.status === 'success' ? '✅' :
+                                     test.status === 'timeout' ? '⏱️' : '❌';
+                    const statusClass = test.status === 'success' ? 'status-online' : 'status-offline';
+                    const responseTime = test.response_time_ms ?
+                        Math.round(test.response_time_ms / 1000000) : 0;
+
+                    return `
+                        <div class="test-detail" style="margin-bottom: 1rem; padding: 1rem; border-left: 3px solid ${test.status === 'success' ? '#28a745' : '#dc3545'}; background: var(--bg-secondary);">
+                            <div class="${statusClass}" style="margin-bottom: 0.5rem;">
+                                ${statusIcon} <strong>${this.getTestName(test)}</strong> (${responseTime}ms)
+                            </div>
+                            <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                <div><strong>Endpoint:</strong> ${test.endpoint}</div>
+                                <div><strong>Method:</strong> ${test.method}</div>
+                                ${test.status_code ? `<div><strong>Status Code:</strong> ${test.status_code}</div>` : ''}
+                                <div><strong>Response Time:</strong> ${responseTime}ms</div>
+                                ${test.details ? `<div><strong>Details:</strong> ${test.details}</div>` : ''}
+                                ${test.error ? `<div style="color: #dc3545;"><strong>Error:</strong> ${test.error}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
             resultsContent.innerHTML = `
-                <div class="status ${result.is_connectable ? 'status-online' : 'status-offline'}">
-                    ${result.is_connectable ? '✅ Connected' : '❌ Connection Failed'}
+                <div class="status ${result.is_connectable ? 'status-online' : 'status-offline'}" style="margin-bottom: 1rem;">
+                    ${result.is_connectable ? '✅ CONNECTED' : '❌ CONNECTION FAILED'}
                 </div>
-                <p><strong>Profile:</strong> ${result.profile_name}</p>
-                <p><strong>Response Time:</strong> ${Math.round(result.response_time_ms / 1000000)}ms</p>
-                <p><strong>Tested At:</strong> ${new Date(result.tested_at).toLocaleString()}</p>
-                ${result.error ? `<p class="status-offline"><strong>Error:</strong> ${result.error}</p>` : ''}
+                <div style="margin-bottom: 1rem;">
+                    <p><strong>Profile:</strong> ${result.profile_name}</p>
+                    <p><strong>Response Time:</strong> ${Math.round(result.response_time_ms / 1000000)}ms</p>
+                    <p><strong>Tested At:</strong> ${new Date(result.tested_at).toLocaleString()}</p>
+                </div>
+                ${result.error ? `<div class="status-offline" style="margin-bottom: 1rem;"><strong>Error:</strong> ${result.error}</div>` : ''}
+                ${testDetailsHTML ? `
+                    <div class="test-details">
+                        <h4 style="margin-bottom: 1rem;">Test Details:</h4>
+                        ${testDetailsHTML}
+                    </div>
+                ` : ''}
+                <div class="status ${result.is_connectable ? 'status-online' : 'status-offline'}" style="margin-top: 1rem;">
+                    ${result.is_connectable ? '✅ Result: Configuration is functional' : '❌ Result: Configuration has issues'}
+                    <br><small>Total response time: ${Math.round(result.response_time_ms / 1000000 / 1000)}s</small>
+                </div>
             `;
             
             resultsDiv.style.display = 'block';
@@ -382,6 +422,21 @@ class CCSwitch {
         } finally {
             testButton.disabled = false;
             testButton.innerHTML = 'Run Test';
+        }
+    }
+
+    // Helper function to get user-friendly test names
+    getTestName(test) {
+        if (test.method === 'GET' && test.endpoint === '/v1/models') {
+            return 'Authentication Test';
+        } else if (test.method === 'GET-MODELS' && test.endpoint === '/v1/models') {
+            return 'Models Endpoint';
+        } else if (test.method === 'claude-cli' && test.endpoint === '/v1/messages') {
+            return 'Chat Endpoint (Claude CLI)';
+        } else if (test.method === 'HEAD') {
+            return 'Basic Connectivity';
+        } else {
+            return `${test.method} ${test.endpoint}`;
         }
     }
 
@@ -1018,22 +1073,39 @@ class CCSwitch {
 
     // API Helper
     async apiCall(endpoint, options = {}) {
+        // Set up timeout controller (60 seconds for API tests)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds
+
         const config = {
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers
             },
+            signal: controller.signal,
             ...options
         };
 
-        const response = await fetch(endpoint, config);
-        const data = await response.json();
+        try {
+            const response = await fetch(endpoint, config);
+            clearTimeout(timeoutId);
+            const data = await response.json();
 
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || `HTTP ${response.status}`);
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || `HTTP ${response.status}`);
+            }
+
+            return data;
+        } catch (error) {
+            clearTimeout(timeoutId);
+
+            // Handle timeout specifically
+            if (error.name === 'AbortError') {
+                throw new Error('Request timed out after 60 seconds');
+            }
+
+            throw error;
         }
-
-        return data;
     }
 
     // Utility Methods

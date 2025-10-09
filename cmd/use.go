@@ -28,13 +28,15 @@ Modes:
 
 Options:
 - Launch Claude Code: Add -l or --launch to automatically launch Claude Code CLI after switching
+- Pass commands to Claude: Use -- separator to pass additional arguments to Claude CLI
+  Example: cc-switch use myconfig -l -- /analyze /build
 
 The interactive mode allows you to browse and select configurations with arrow keys.
 The previous mode switches to the last used configuration.
 The empty mode temporarily removes all configurations.
 The restore mode restores from empty mode to the previous configuration.
 The refresh mode re-applies the current configuration (useful after manual edits).`,
-	Args: cobra.MaximumNArgs(1),
+	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkClaudeConfig(); err != nil {
 			return err
@@ -54,6 +56,19 @@ The refresh mode re-applies the current configuration (useful after manual edits
 		refreshFlag, _ := cmd.Flags().GetBool("refresh")
 		launchFlag, _ := cmd.Flags().GetBool("launch")
 
+		// Get arguments after -- separator for passing to Claude
+		var claudeArgs []string
+		var mainArgs []string
+
+		if cmd.ArgsLenAtDash() >= 0 {
+			// Arguments were split by --
+			mainArgs = args[:cmd.ArgsLenAtDash()]
+			claudeArgs = args[cmd.ArgsLenAtDash():]
+		} else {
+			// No -- separator, all args are main args
+			mainArgs = args
+		}
+
 		// Validate flag combinations
 		flagCount := 0
 		if previousFlag {
@@ -68,7 +83,7 @@ The refresh mode re-applies the current configuration (useful after manual edits
 		if refreshFlag {
 			flagCount++
 		}
-		if len(args) > 0 {
+		if len(mainArgs) > 0 {
 			flagCount++
 		}
 
@@ -82,7 +97,7 @@ The refresh mode re-applies the current configuration (useful after manual edits
 
 		// Create UI provider based on mode
 		var uiProvider ui.UIProvider
-		if !previousFlag && !emptyFlag && !restoreFlag && !refreshFlag && ui.NewInteractiveUI().DetectMode(interactiveFlag, args) == ui.Interactive {
+		if !previousFlag && !emptyFlag && !restoreFlag && !refreshFlag && ui.NewInteractiveUI().DetectMode(interactiveFlag, mainArgs) == ui.Interactive {
 			uiProvider = ui.NewInteractiveUI()
 		} else {
 			uiProvider = ui.NewCLIUI()
@@ -94,24 +109,24 @@ The refresh mode re-applies the current configuration (useful after manual edits
 		}
 
 		if restoreFlag {
-			return handleRestoreMode(configHandler, uiProvider, launchFlag)
+			return handleRestoreMode(configHandler, uiProvider, launchFlag, claudeArgs)
 		}
 
 		if refreshFlag {
-			return handleRefreshMode(configHandler, uiProvider, launchFlag)
+			return handleRefreshMode(configHandler, uiProvider, launchFlag, claudeArgs)
 		}
 
 		if previousFlag {
-			return handlePreviousConfig(configHandler, uiProvider, launchFlag)
+			return handlePreviousConfig(configHandler, uiProvider, launchFlag, claudeArgs)
 		}
 
 		// Execute normal use operation
-		return executeUse(configHandler, uiProvider, args, launchFlag)
+		return executeUse(configHandler, uiProvider, mainArgs, launchFlag, claudeArgs)
 	},
 }
 
 // executeUse handles the use operation with the given dependencies
-func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, launchCode bool) error {
+func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, args []string, launchCode bool, claudeArgs []string) error {
 	// Check if currently in empty mode - if so, any use command should restore first
 	if configHandler.IsEmptyMode() {
 		uiProvider.ShowInfo("Currently in empty mode. Restoring settings first...")
@@ -150,11 +165,17 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 			case "empty_mode":
 				return handleEmptyMode(configHandler, uiProvider)
 			case "restore":
-				return handleRestoreMode(configHandler, uiProvider, launchCode)
+				return handleRestoreMode(configHandler, uiProvider, launchCode, claudeArgs)
 			case "profile":
 				// Check if already current
 				if selection.Profile.IsCurrent && !configHandler.IsEmptyMode() {
 					uiProvider.ShowWarning("Configuration '%s' is already active", selection.Profile.Name)
+					// Still allow launching Claude Code if requested
+					if launchCode {
+						if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
+							uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
+						}
+					}
 					return nil
 				}
 				targetName = selection.Profile.Name
@@ -171,6 +192,12 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 			// Check if already current
 			if selected.IsCurrent && !configHandler.IsEmptyMode() {
 				uiProvider.ShowWarning("Configuration '%s' is already active", selected.Name)
+				// Still allow launching Claude Code if requested
+				if launchCode {
+					if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
+						uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
+					}
+				}
 				return nil
 			}
 
@@ -186,6 +213,12 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 		// Handle specific error messages
 		if err.Error() == fmt.Sprintf("configuration '%s' is already active", targetName) {
 			uiProvider.ShowWarning("Configuration '%s' is already active", targetName)
+			// Still allow launching Claude Code if requested
+			if launchCode {
+				if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
+					uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
+				}
+			}
 			return nil
 		}
 		uiProvider.ShowError(err)
@@ -196,7 +229,7 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 
 	// Launch Claude Code if requested
 	if launchCode {
-		if err := launchClaudeCode(uiProvider); err != nil {
+		if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
 			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
 		}
 	}
@@ -205,11 +238,11 @@ func executeUse(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, a
 }
 
 // handlePreviousConfig handles switching to the previous configuration
-func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, launchCode bool) error {
+func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, launchCode bool, claudeArgs []string) error {
 	// Special handling for empty mode: -p should behave like -r
 	if configHandler.IsEmptyMode() {
 		uiProvider.ShowInfo("In empty mode: using previous (-p) will restore from empty mode")
-		return handleRestoreMode(configHandler, uiProvider, launchCode)
+		return handleRestoreMode(configHandler, uiProvider, launchCode, claudeArgs)
 	}
 
 	// Get previous configuration
@@ -257,7 +290,7 @@ func handlePreviousConfig(configHandler handler.ConfigHandler, uiProvider ui.UIP
 
 	// Launch Claude Code if requested
 	if launchCode {
-		if err := launchClaudeCode(uiProvider); err != nil {
+		if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
 			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
 		}
 	}
@@ -293,7 +326,7 @@ func handleEmptyMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvid
 }
 
 // handleRestoreMode handles restoring from empty mode
-func handleRestoreMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, launchCode bool) error {
+func handleRestoreMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, launchCode bool, claudeArgs []string) error {
 	// Check if in empty mode
 	if !configHandler.IsEmptyMode() {
 		uiProvider.ShowWarning("Not in empty mode")
@@ -323,7 +356,7 @@ func handleRestoreMode(configHandler handler.ConfigHandler, uiProvider ui.UIProv
 
 	// Launch Claude Code if requested
 	if launchCode {
-		if err := launchClaudeCode(uiProvider); err != nil {
+		if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
 			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
 		}
 	}
@@ -332,7 +365,7 @@ func handleRestoreMode(configHandler handler.ConfigHandler, uiProvider ui.UIProv
 }
 
 // handleRefreshMode handles refreshing the current configuration
-func handleRefreshMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, launchCode bool) error {
+func handleRefreshMode(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, launchCode bool, claudeArgs []string) error {
 	// Check if in empty mode
 	if configHandler.IsEmptyMode() {
 		uiProvider.ShowWarning("Cannot refresh in empty mode. Use 'cc-switch use <profile>' to switch to a specific configuration")
@@ -365,7 +398,7 @@ func handleRefreshMode(configHandler handler.ConfigHandler, uiProvider ui.UIProv
 
 	// Launch Claude Code if requested
 	if launchCode {
-		if err := launchClaudeCode(uiProvider); err != nil {
+		if err := launchClaudeCode(uiProvider, claudeArgs); err != nil {
 			uiProvider.ShowWarning("Failed to launch Claude Code: %v. Launch manually with: claude", err)
 		}
 	}
@@ -374,18 +407,23 @@ func handleRefreshMode(configHandler handler.ConfigHandler, uiProvider ui.UIProv
 }
 
 // launchClaudeCode launches Claude Code CLI with appropriate error handling
-func launchClaudeCode(uiProvider ui.UIProvider) error {
+func launchClaudeCode(uiProvider ui.UIProvider, claudeArgs []string) error {
 	// Try to find Claude Code CLI executable
 	claudePath, err := findClaudeCodeExecutable()
 	if err != nil {
 		return fmt.Errorf("claude Code CLI not found: %w", err)
 	}
 
-	uiProvider.ShowInfo("Starting Claude Code CLI in current terminal... (Press Ctrl+C or type 'exit' to return)")
+	if len(claudeArgs) > 0 {
+		uiProvider.ShowInfo("Starting Claude Code CLI with arguments: %v", claudeArgs)
+		uiProvider.ShowInfo("(Press Ctrl+C or type 'exit' to return)")
+	} else {
+		uiProvider.ShowInfo("Starting Claude Code CLI in current terminal... (Press Ctrl+C or type 'exit' to return)")
+	}
 	fmt.Println("") // Visual separation
 
-	// Create the command with proper terminal inheritance
-	cmd := exec.Command(claudePath)
+	// Create the command with proper terminal inheritance and additional arguments
+	cmd := exec.Command(claudePath, claudeArgs...)
 
 	// Inherit the current terminal's stdin, stdout, and stderr
 	// This allows Claude Code to run interactively in the current terminal

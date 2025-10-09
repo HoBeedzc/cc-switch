@@ -314,7 +314,7 @@ func (ui *interactiveUI) ConfirmTemplateCreation(fields []config.TemplateField) 
 	prompt := promptui.Prompt{
 		Label:     "Continue with interactive template field input?",
 		IsConfirm: true,
-		Default:   "y",
+		Default:   "n",
 	}
 
 	result, err := prompt.Run()
@@ -324,7 +324,7 @@ func (ui *interactiveUI) ConfirmTemplateCreation(fields []config.TemplateField) 
 
 	result = strings.ToLower(strings.TrimSpace(result))
 	if result == "" {
-		return true // 默认值：继续交互式创建
+		return false // 默认值：不继续（退出）
 	}
 	return result == "y" || result == "yes" || result == "true"
 }
@@ -335,19 +335,14 @@ func (ui *interactiveUI) ShowTemplateFieldSummary(fields []config.TemplateField)
 		return
 	}
 
-	color.Cyan("📝 Template Configuration Summary")
-	fmt.Printf("Template has %d empty field(s) that need to be filled:\n\n", len(fields))
+	fmt.Printf("Template has %d empty field(s):\n\n", len(fields))
 
 	for _, field := range fields {
 		if field.Required {
-			color.Yellow("  📋 %s", field.Name)
-			color.Red("      • Required field")
+			color.Yellow("  %s (required): %s", field.Name, field.Description)
 		} else {
-			color.White("  📋 %s", field.Name)
-			color.Green("      • Optional field")
+			color.White("  %s (optional): %s", field.Name, field.Description)
 		}
-		color.Cyan("      • %s", field.Description)
-		fmt.Println()
 	}
 	fmt.Println()
 }
