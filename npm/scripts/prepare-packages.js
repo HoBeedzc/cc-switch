@@ -52,6 +52,17 @@ const mainTarget = path.join(__dirname, '..', '..', 'npm-publish', 'main');
 // Copy main package files
 fs.cpSync(mainSource, mainTarget, { recursive: true });
 
+// Copy README files from root
+const rootDir = path.join(__dirname, '..', '..');
+const readmeFiles = ['README.md', 'README.zh.md'];
+readmeFiles.forEach(readme => {
+  const readmePath = path.join(rootDir, readme);
+  if (fs.existsSync(readmePath)) {
+    fs.copyFileSync(readmePath, path.join(mainTarget, readme));
+    console.log(`✓ Copied ${readme} to main package`);
+  }
+});
+
 // Update main package.json
 const mainPackageJsonPath = path.join(mainTarget, 'package.json');
 const mainPackageJson = JSON.parse(fs.readFileSync(mainPackageJsonPath, 'utf8'));
