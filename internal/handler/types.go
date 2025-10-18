@@ -153,11 +153,14 @@ type EndpointTest struct {
 
 // TestOptions controls API test behavior
 type TestOptions struct {
-	Quick      bool          `json:"quick"`
-	Verbose    bool          `json:"verbose"`
-	Timeout    time.Duration `json:"timeout"`
-	Endpoints  []string      `json:"endpoints,omitempty"`
-	JSONOutput bool          `json:"json_output"`
+	Quick         bool          `json:"quick"`
+	Verbose       bool          `json:"verbose"`
+	Timeout       time.Duration `json:"timeout"`
+	Endpoints     []string      `json:"endpoints,omitempty"`
+	JSONOutput    bool          `json:"json_output"`
+	RetryEnabled  bool          `json:"retry_enabled"`
+	MaxRetries    int           `json:"max_retries"` // 0 means infinite retries
+	RetryInterval time.Duration `json:"retry_interval"`
 }
 
 // APICredentials represents extracted API authentication credentials

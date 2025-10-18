@@ -18,7 +18,7 @@ import (
 
 const (
 	// Version should match the version in package.json
-	clientVersion = "1.0.5"
+	clientVersion = "1.0.16"
 	userAgent     = "claude-code/" + clientVersion
 )
 
@@ -99,10 +99,10 @@ func (t *APITester) TestAPIConnectivity(profileName string, options TestOptions)
 			t.testModelsEndpoint(credentials),
 		)
 
-		// Only test chat endpoint if not quick mode and auth is working
-		if len(result.Tests) > 0 && result.Tests[0].Status == "success" {
-			result.Tests = append(result.Tests, t.testChatEndpoint(profileName, credentials))
-		}
+		// Always test chat endpoint with real Claude CLI
+		// This is the most reliable test, especially for third-party proxies
+		// that may not implement all Anthropic API endpoints
+		result.Tests = append(result.Tests, t.testChatEndpoint(profileName, credentials))
 	}
 
 	// Calculate total response time and connectivity status
@@ -514,7 +514,8 @@ func (t *APITester) aggregateResults(tests []EndpointTest) bool {
 
 	// Specific test status tracking
 	authSuccess := false
-	chatSuccess := true // Assume true if no chat test
+	chatTestFound := false
+	chatSuccess := false
 
 	for _, test := range tests {
 		switch test.Status {
@@ -524,31 +525,41 @@ func (t *APITester) aggregateResults(tests []EndpointTest) bool {
 			if test.Endpoint == "/v1/models" && test.Method == "GET" {
 				authSuccess = true
 			}
-			// Track chat endpoint success
-			if test.Endpoint == "/v1/messages" {
+			// Track chat endpoint success (Claude CLI test)
+			if test.Endpoint == "/v1/messages" && test.Method == "claude-cli" {
+				chatTestFound = true
 				chatSuccess = true
 			}
 		case "timeout":
 			timeoutCount++
 			// Chat endpoint timeout is critical
-			if test.Endpoint == "/v1/messages" {
+			if test.Endpoint == "/v1/messages" && test.Method == "claude-cli" {
+				chatTestFound = true
 				chatSuccess = false
 			}
 		case "failed":
 			failureCount++
-			// Chat endpoint failure is critical
-			if test.Endpoint == "/v1/messages" {
+			// Chat endpoint failure
+			if test.Endpoint == "/v1/messages" && test.Method == "claude-cli" {
+				chatTestFound = true
 				chatSuccess = false
 			}
 		}
 	}
 
+	// Priority 1: If Claude CLI test was performed, use its result as the primary indicator
+	// This is the most reliable test since it uses the actual Claude Code CLI
+	if chatTestFound {
+		// Configuration is functional if Claude CLI test succeeded and no timeouts
+		return chatSuccess && timeoutCount == 0
+	}
+
+	// Priority 2: Fall back to standard API tests if Claude CLI test wasn't performed
 	// Configuration is functional only if:
 	// 1. Authentication succeeded
 	// 2. No timeouts occurred
-	// 3. Chat endpoint succeeded (if tested)
-	// 4. At least 50% of tests passed
+	// 3. At least 50% of tests passed
 	minSuccessRate := float64(successCount)/float64(len(tests)) >= 0.5
 
-	return authSuccess && timeoutCount == 0 && chatSuccess && minSuccessRate
+	return authSuccess && timeoutCount == 0 && minSuccessRate
 }

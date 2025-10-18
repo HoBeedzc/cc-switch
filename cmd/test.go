@@ -31,9 +31,12 @@ Examples:
   cc-switch test                    # Interactive mode - select configuration to test
   cc-switch test work-config        # Test specific configuration
   cc-switch test -c                 # Test current configuration
-  cc-switch test --all             # Test all configurations
-  cc-switch test --quick           # Quick connectivity test only
-  cc-switch test --verbose         # Show detailed request/response info`,
+  cc-switch test --all              # Test all configurations
+  cc-switch test --quick            # Quick connectivity test only
+  cc-switch test --verbose          # Show detailed request/response info
+  cc-switch test -r 0               # Retry infinitely until success
+  cc-switch test -r 5               # Retry up to 5 times on failure
+  cc-switch test -r 3 --retry-interval 5s  # Retry 3 times with 5s interval`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runTest,
 }
@@ -47,6 +50,8 @@ func init() {
 	testCmd.Flags().String("endpoint", "", "Test specific endpoint (chat, models, auth)")
 	testCmd.Flags().Duration("timeout", 30*time.Second, "Request timeout")
 	testCmd.Flags().Bool("json", false, "Output results in JSON format")
+	testCmd.Flags().IntP("retry", "r", -1, "Retry on failure (0=infinite, N=max retry count, -1=disabled)")
+	testCmd.Flags().Duration("retry-interval", 2*time.Second, "Interval between retries")
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
@@ -89,11 +94,17 @@ func runTest(cmd *cobra.Command, args []string) error {
 	}
 
 	// Parse test options
+	retryCount, _ := cmd.Flags().GetInt("retry")
+	retryInterval, _ := cmd.Flags().GetDuration("retry-interval")
+
 	options := handler.TestOptions{
-		Quick:      cmd.Flag("quick").Value.String() == "true",
-		Verbose:    cmd.Flag("verbose").Value.String() == "true",
-		JSONOutput: cmd.Flag("json").Value.String() == "true",
-		Timeout:    parseDuration(cmd.Flag("timeout").Value.String()),
+		Quick:         cmd.Flag("quick").Value.String() == "true",
+		Verbose:       cmd.Flag("verbose").Value.String() == "true",
+		JSONOutput:    cmd.Flag("json").Value.String() == "true",
+		Timeout:       parseDuration(cmd.Flag("timeout").Value.String()),
+		RetryEnabled:  retryCount >= 0,
+		MaxRetries:    retryCount,
+		RetryInterval: retryInterval,
 	}
 
 	// Parse endpoint filter if provided
@@ -170,7 +181,10 @@ func runTestCurrent(configHandler handler.ConfigHandler, uiProvider ui.UIProvide
 		uiProvider.ShowInfo("Testing current configuration...")
 	}
 
-	result, err := configHandler.TestCurrentConfiguration(options)
+	result, err := withRetry(func() (*handler.APITestResult, error) {
+		return configHandler.TestCurrentConfiguration(options)
+	}, options, uiProvider)
+
 	if err != nil {
 		return fmt.Errorf("failed to test current configuration: %w", err)
 	}
@@ -183,7 +197,10 @@ func runTestSingle(configHandler handler.ConfigHandler, uiProvider ui.UIProvider
 		uiProvider.ShowInfo("Testing configuration: %s", profileName)
 	}
 
-	result, err := configHandler.TestAPIConnectivity(profileName, options)
+	result, err := withRetry(func() (*handler.APITestResult, error) {
+		return configHandler.TestAPIConnectivity(profileName, options)
+	}, options, uiProvider)
+
 	if err != nil {
 		return fmt.Errorf("failed to test configuration: %w", err)
 	}
@@ -197,9 +214,38 @@ func runTestAll(configHandler handler.ConfigHandler, uiProvider ui.UIProvider, o
 		fmt.Println()
 	}
 
-	results, err := configHandler.TestAllConfigurations(options)
+	// If retry is not enabled, use the standard batch test method
+	if !options.RetryEnabled {
+		results, err := configHandler.TestAllConfigurations(options)
+		if err != nil {
+			return fmt.Errorf("failed to test configurations: %w", err)
+		}
+		return displayAllResultsWithUI(uiProvider, results, options)
+	}
+
+	// With retry enabled, test each configuration individually with retry logic
+	profiles, err := configHandler.ListConfigs()
 	if err != nil {
-		return fmt.Errorf("failed to test configurations: %w", err)
+		return fmt.Errorf("failed to list profiles: %w", err)
+	}
+
+	results := make([]handler.APITestResult, 0, len(profiles))
+
+	for _, profile := range profiles {
+		result, err := withRetry(func() (*handler.APITestResult, error) {
+			return configHandler.TestAPIConnectivity(profile.Name, options)
+		}, options, uiProvider)
+
+		if err != nil {
+			// Create error result for this profile
+			result = &handler.APITestResult{
+				ProfileName:   profile.Name,
+				IsConnectable: false,
+				TestedAt:      time.Now(),
+				Error:         err.Error(),
+			}
+		}
+		results = append(results, *result)
 	}
 
 	return displayAllResultsWithUI(uiProvider, results, options)
@@ -449,4 +495,55 @@ func displayAllResultsWithUI(uiProvider ui.UIProvider, results []handler.APITest
 	}
 
 	return nil
+}
+
+// withRetry wraps a test function with retry logic
+func withRetry(
+	testFunc func() (*handler.APITestResult, error),
+	options handler.TestOptions,
+	uiProvider ui.UIProvider,
+) (*handler.APITestResult, error) {
+	if !options.RetryEnabled {
+		return testFunc()
+	}
+
+	attempt := 0
+	maxRetries := options.MaxRetries
+	isInfinite := maxRetries == 0
+
+	for {
+		attempt++
+
+		// Execute the test
+		result, err := testFunc()
+
+		// Check if test succeeded
+		if err == nil && result != nil && result.IsConnectable {
+			if attempt > 1 && !options.JSONOutput {
+				uiProvider.ShowSuccess("✅ Test succeeded on attempt %d", attempt)
+			}
+			return result, nil
+		}
+
+		// Determine if we should retry
+		shouldRetry := isInfinite || attempt < maxRetries
+		if !shouldRetry {
+			if !options.JSONOutput {
+				uiProvider.ShowError(fmt.Errorf("❌ Test failed after %d attempts", attempt))
+			}
+			return result, err
+		}
+
+		// Show retry message
+		if !options.JSONOutput {
+			if isInfinite {
+				uiProvider.ShowWarning("⚠️  Attempt %d failed, retrying in %s...", attempt, options.RetryInterval)
+			} else {
+				uiProvider.ShowWarning("⚠️  Attempt %d/%d failed, retrying in %s...", attempt, maxRetries, options.RetryInterval)
+			}
+		}
+
+		// Wait before retry
+		time.Sleep(options.RetryInterval)
+	}
 }
