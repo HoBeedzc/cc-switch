@@ -517,16 +517,36 @@ func withRetry(
 		// Execute the test
 		result, err := testFunc()
 
-		// Check if test succeeded
-		if err == nil && result != nil && result.IsConnectable {
+		// Check if test succeeded first
+		testSucceeded := err == nil && result != nil && result.IsConnectable
+
+		// Determine if we should retry
+		shouldRetry := isInfinite || attempt < maxRetries
+
+		// In verbose mode, show detailed test results only for failed attempts that will retry
+		// (final result, whether success or failure, will be displayed by displaySingleResultWithUI)
+		if options.Verbose && !options.JSONOutput && result != nil && !testSucceeded && shouldRetry {
+			fmt.Printf("\n--- Attempt %d ---\n", attempt)
+			for _, test := range result.Tests {
+				symbol := getStatusSymbol(test.Status)
+				message := fmt.Sprintf("%s %s", symbol, formatTestDescription(test))
+				if test.Status == "success" {
+					uiProvider.ShowSuccess(message)
+				} else {
+					uiProvider.ShowError(fmt.Errorf("%s", message))
+				}
+				// Show verbose details
+				fmt.Println(formatVerboseTestDetails(test))
+			}
+		}
+
+		// Return if test succeeded
+		if testSucceeded {
 			if attempt > 1 && !options.JSONOutput {
 				uiProvider.ShowSuccess("✅ Test succeeded on attempt %d", attempt)
 			}
 			return result, nil
 		}
-
-		// Determine if we should retry
-		shouldRetry := isInfinite || attempt < maxRetries
 		if !shouldRetry {
 			if !options.JSONOutput {
 				uiProvider.ShowError(fmt.Errorf("❌ Test failed after %d attempts", attempt))
