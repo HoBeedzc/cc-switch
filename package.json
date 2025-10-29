@@ -1,6 +1,6 @@
 {
   "name": "cc-switch-dev",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Claude Code configuration switcher - Development workspace",
   "private": true,
   "scripts": {

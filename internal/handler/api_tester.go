@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"cc-switch/internal/common"
 	"cc-switch/internal/config"
 	"context"
 	"crypto/tls"
@@ -16,11 +17,8 @@ import (
 	"time"
 )
 
-const (
-	// Version should match the version in package.json
-	clientVersion = "1.0.16"
-	userAgent     = "claude-code/" + clientVersion
-)
+// User-Agent 中附带工具版本，版本来源统一于 internal/common/version.go
+var userAgent = "claude-code/" + common.Version
 
 // APITester handles API connectivity testing for Claude Code configurations
 type APITester struct {
@@ -76,10 +74,7 @@ func (t *APITester) TestAPIConnectivity(profileName string, options TestOptions)
 		}, nil
 	}
 
-	// Apply custom timeout if specified
-	if options.Timeout > 0 {
-		t.httpClient.Timeout = options.Timeout
-	}
+	// 不再修改 httpClient 的全局 Timeout，避免并发场景下的相互影响
 
 	result := &APITestResult{
 		ProfileName: profileName,
@@ -89,20 +84,34 @@ func (t *APITester) TestAPIConnectivity(profileName string, options TestOptions)
 
 	start := time.Now()
 
-	// Run appropriate test suite based on options
-	if options.Quick {
-		result.Tests = append(result.Tests, t.testBasicConnectivity(credentials))
-	} else {
-		// Full test suite
-		result.Tests = append(result.Tests,
-			t.testAuthentication(credentials),
-			t.testModelsEndpoint(credentials),
-		)
+	// 构造测试集合：优先考虑 endpoints 过滤；其次考虑 quick；否则执行完整套件
+	var tests []EndpointTest
+	timeout := options.Timeout
 
-		// Always test chat endpoint with real Claude CLI
-		// This is the most reliable test, especially for third-party proxies
-		// that may not implement all Anthropic API endpoints
-		result.Tests = append(result.Tests, t.testChatEndpoint(profileName, credentials))
+	// 规范 endpoints 取值：basic/auth/models/chat
+	if len(options.Endpoints) > 0 {
+		for _, ep := range options.Endpoints {
+			switch strings.ToLower(strings.TrimSpace(ep)) {
+			case "basic":
+				tests = append(tests, t.testBasicConnectivity(credentials, timeout))
+			case "auth":
+				tests = append(tests, t.testAuthentication(credentials, timeout))
+			case "models":
+				tests = append(tests, t.testModelsEndpoint(credentials, timeout))
+			case "chat":
+				tests = append(tests, t.testChatEndpoint(profileName, credentials, timeout))
+			}
+		}
+		result.Tests = append(result.Tests, tests...)
+	} else if options.Quick {
+		result.Tests = append(result.Tests, t.testBasicConnectivity(credentials, timeout))
+	} else {
+		// 完整套件
+		result.Tests = append(result.Tests,
+			t.testAuthentication(credentials, timeout),
+			t.testModelsEndpoint(credentials, timeout),
+			t.testChatEndpoint(profileName, credentials, timeout),
+		)
 	}
 
 	// Calculate total response time and connectivity status
@@ -192,7 +201,7 @@ func (t *APITester) extractAPICredentials(profileName string) (*APICredentials, 
 }
 
 // testBasicConnectivity performs a basic connectivity test to the API
-func (t *APITester) testBasicConnectivity(credentials *APICredentials) EndpointTest {
+func (t *APITester) testBasicConnectivity(credentials *APICredentials, timeout time.Duration) EndpointTest {
 	start := time.Now()
 
 	req, err := http.NewRequest("HEAD", credentials.BaseURL, nil)
@@ -207,7 +216,7 @@ func (t *APITester) testBasicConnectivity(credentials *APICredentials) EndpointT
 		}
 	}
 
-	resp, err := t.httpClient.Do(req)
+	resp, err := t.doRequest(req, timeout)
 	duration := time.Since(start)
 
 	test := EndpointTest{
@@ -238,7 +247,7 @@ func (t *APITester) testBasicConnectivity(credentials *APICredentials) EndpointT
 }
 
 // testAuthentication tests API authentication
-func (t *APITester) testAuthentication(credentials *APICredentials) EndpointTest {
+func (t *APITester) testAuthentication(credentials *APICredentials, timeout time.Duration) EndpointTest {
 	start := time.Now()
 
 	endpoint := "/v1/models"
@@ -260,7 +269,7 @@ func (t *APITester) testAuthentication(credentials *APICredentials) EndpointTest
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("anthropic-version", credentials.Version)
 
-	resp, err := t.httpClient.Do(req)
+	resp, err := t.doRequest(req, timeout)
 	duration := time.Since(start)
 
 	test := EndpointTest{
@@ -304,7 +313,7 @@ func (t *APITester) testAuthentication(credentials *APICredentials) EndpointTest
 }
 
 // testModelsEndpoint tests the models endpoint specifically
-func (t *APITester) testModelsEndpoint(credentials *APICredentials) EndpointTest {
+func (t *APITester) testModelsEndpoint(credentials *APICredentials, timeout time.Duration) EndpointTest {
 	start := time.Now()
 
 	endpoint := "/v1/models"
@@ -326,7 +335,11 @@ func (t *APITester) testModelsEndpoint(credentials *APICredentials) EndpointTest
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("anthropic-version", credentials.Version)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 使用自定义超时（若未设置则回退到 10s）
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	req = req.WithContext(ctx)
 
@@ -381,7 +394,7 @@ func (t *APITester) testModelsEndpoint(credentials *APICredentials) EndpointTest
 }
 
 // testChatEndpoint tests the chat endpoint using real Claude Code CLI
-func (t *APITester) testChatEndpoint(profileName string, credentials *APICredentials) EndpointTest {
+func (t *APITester) testChatEndpoint(profileName string, credentials *APICredentials, timeout time.Duration) EndpointTest {
 	start := time.Now()
 
 	endpoint := "/v1/messages"
@@ -411,8 +424,11 @@ func (t *APITester) testChatEndpoint(profileName string, credentials *APICredent
 		return test
 	}
 
-	// Execute claude command with 30s timeout using the actual config file
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// 使用给定超时（默认 30s）执行 claude 命令
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, claudePath, "-p", "Hi", "--settings", configPath)
@@ -516,6 +532,8 @@ func (t *APITester) aggregateResults(tests []EndpointTest) bool {
 	authSuccess := false
 	chatTestFound := false
 	chatSuccess := false
+	basicFound := false
+	basicAllSuccess := true
 
 	for _, test := range tests {
 		switch test.Status {
@@ -530,6 +548,10 @@ func (t *APITester) aggregateResults(tests []EndpointTest) bool {
 				chatTestFound = true
 				chatSuccess = true
 			}
+			// 基础连通性（HEAD）
+			if test.Method == "HEAD" {
+				basicFound = true
+			}
 		case "timeout":
 			timeoutCount++
 			// Chat endpoint timeout is critical
@@ -537,12 +559,20 @@ func (t *APITester) aggregateResults(tests []EndpointTest) bool {
 				chatTestFound = true
 				chatSuccess = false
 			}
+			if test.Method == "HEAD" {
+				basicFound = true
+				basicAllSuccess = false
+			}
 		case "failed":
 			failureCount++
 			// Chat endpoint failure
 			if test.Endpoint == "/v1/messages" && test.Method == "claude-cli" {
 				chatTestFound = true
 				chatSuccess = false
+			}
+			if test.Method == "HEAD" {
+				basicFound = true
+				basicAllSuccess = false
 			}
 		}
 	}
@@ -554,12 +584,23 @@ func (t *APITester) aggregateResults(tests []EndpointTest) bool {
 		return chatSuccess && timeoutCount == 0
 	}
 
-	// Priority 2: Fall back to standard API tests if Claude CLI test wasn't performed
-	// Configuration is functional only if:
-	// 1. Authentication succeeded
-	// 2. No timeouts occurred
-	// 3. At least 50% of tests passed
-	minSuccessRate := float64(successCount)/float64(len(tests)) >= 0.5
+	// Priority 2: 如果仅做了基础连通性测试（Quick 或仅选 HEAD），全部成功即可视为可连接
+	if basicFound && !authSuccess && !chatTestFound {
+		return basicAllSuccess && timeoutCount == 0
+	}
 
+	// Priority 3: 标准 API 测试（包含 auth/models 但无 chat）
+	// 规则：认证成功、无超时、且通过率 >= 50%
+	minSuccessRate := float64(successCount)/float64(len(tests)) >= 0.5
 	return authSuccess && timeoutCount == 0 && minSuccessRate
+}
+
+// doRequest 以给定超时执行 HTTP 请求（不修改全局 httpClient 超时，提升并发安全性）
+func (t *APITester) doRequest(req *http.Request, timeout time.Duration) (*http.Response, error) {
+	if timeout <= 0 {
+		return t.httpClient.Do(req)
+	}
+	ctx, cancel := context.WithTimeout(req.Context(), timeout)
+	defer cancel()
+	return t.httpClient.Do(req.WithContext(ctx))
 }

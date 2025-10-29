@@ -74,9 +74,9 @@ func NewCCXHandler() *CCXHandler {
 func (h *CCXHandler) Write(data *ExportData, writer io.Writer, password string) error {
 	// Create metadata
 	metadata := CCXMetadata{
-		Version:       "1.0.0",
+		Version:       common.Version,
 		ExportedAt:    time.Now().UTC().Format(time.RFC3339),
-		ToolVersion:   "cc-switch v1.0.0",
+		ToolVersion:   "cc-switch v" + common.Version,
 		ExportType:    h.getExportType(data),
 		ProfilesCount: len(data.Profiles),
 		Encryption:    "aes-256-gcm",

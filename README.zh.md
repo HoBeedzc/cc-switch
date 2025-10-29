@@ -179,6 +179,11 @@ cc-switch test --all
 
 # 快速连接测试
 cc-switch test --quick
+
+# 失败后重试
+cc-switch test -r 5                 # 最多重试 5 次
+cc-switch test -r -1                # 无限重试直到成功
+cc-switch test -r 3 --retry-interval 5s  # 重试 3 次，间隔 5 秒
 ```
 测试 Claude Code API 连接性和认证情况。
 
@@ -560,11 +565,23 @@ cc-switch/
 
 ### 贡献
 
+欢迎贡献！请查看我们的[贡献指南](CONTRIBUTING.zh.md)了解详细信息：
+
+- 开发环境配置和工作流程
+- 代码风格指南
+- 测试要求
+- Pull Request 流程
+- 问题反馈
+
+快速开始：
+
 1. Fork 仓库
 2. 创建功能分支（`git checkout -b feature/amazing-feature`）
 3. 提交更改（`git commit -m 'Add amazing feature'`）
 4. 推送分支（`git push origin feature/amazing-feature`）
 5. 发起 Pull Request
+
+英文版本请参阅 [Contributing Guide (English)](CONTRIBUTING.md)。
 
 ### 许可证
 

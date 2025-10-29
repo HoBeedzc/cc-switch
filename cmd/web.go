@@ -148,12 +148,12 @@ func openBrowser(url string) {
 	}
 
 	// Execute the command to open browser
-	exec := &exec.Cmd{
+	proc := &exec.Cmd{
 		Path: cmd,
 		Args: append([]string{cmd}, args...),
 	}
 
-	if err := exec.Start(); err != nil {
+	if err := proc.Start(); err != nil {
 		fmt.Printf("💻 Please open your browser and go to: %s\n", url)
 	}
 }

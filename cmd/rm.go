@@ -11,8 +11,9 @@ import (
 )
 
 var rmCmd = &cobra.Command{
-	Use:   "rm [name]",
-	Short: "Remove a configuration or template",
+	Use:     "rm [name]",
+	Aliases: []string{"del", "delete", "remove"},
+	Short:   "Remove a configuration or template",
 	Long: `Remove the specified configuration or template with enhanced deletion options.
 
 Configuration Modes:
@@ -255,7 +256,7 @@ func executeRemove(configHandler handler.ConfigHandler, uiProvider ui.UIProvider
 }
 
 // executeTemplateOperations handles template-related operations
-func executeTemplateOperations(configHandler handler.ConfigHandler, args []string, template, interactive, skipConfirm bool) error {
+func executeTemplateOperations(configHandler handler.ConfigHandler, args []string, _ /* template */, _ /* interactive */, skipConfirm bool) error {
 	// Template deletion logic
 	var targetTemplate string
 

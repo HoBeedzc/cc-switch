@@ -11,8 +11,9 @@ import (
 )
 
 var mvCmd = &cobra.Command{
-	Use:   "mv <old-name> <new-name>",
-	Short: "Move (rename) a configuration or template",
+	Use:     "mv <old-name> <new-name>",
+	Aliases: []string{"rename", "move"},
+	Short:   "Move (rename) a configuration or template",
 	Long: `Move (rename) the specified configuration or template. If the configuration is currently active, 
 the current configuration marker will be updated automatically.
 

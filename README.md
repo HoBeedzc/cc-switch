@@ -179,6 +179,11 @@ cc-switch test --all
 
 # Quick connectivity test
 cc-switch test --quick
+
+# Retry on failure
+cc-switch test -r 5                 # Retry up to 5 times
+cc-switch test -r -1                # Retry infinitely until success
+cc-switch test -r 3 --retry-interval 5s  # Retry 3 times with 5s interval
 ```
 Test Claude Code API connectivity and authentication for configurations.
 
@@ -560,11 +565,23 @@ cc-switch/
 
 ### Contributing
 
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on:
+
+- Development setup and workflow
+- Code style guidelines
+- Testing requirements
+- Pull request process
+- Reporting issues
+
+Quick start:
+
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+For Chinese version, see [贡献指南 (中文)](CONTRIBUTING.zh.md).
 
 ### License
 

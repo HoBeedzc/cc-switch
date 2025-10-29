@@ -11,8 +11,9 @@ import (
 )
 
 var cpCmd = &cobra.Command{
-	Use:   "cp <source> <destination>",
-	Short: "Copy a configuration or template",
+	Use:     "cp <source> <destination>",
+	Aliases: []string{"copy"},
+	Short:   "Copy a configuration or template",
 	Long: `Copy the specified configuration or template to a new name. The original remains unchanged.
 
 Configuration Modes:

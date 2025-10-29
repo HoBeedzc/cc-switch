@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"cc-switch/internal/common"
 	"cc-switch/internal/handler"
 )
 
@@ -73,7 +74,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // handleIndex serves the main HTML page
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, `<!DOCTYPE html>
+	fmt.Fprint(w, fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -87,7 +88,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
         <header class="header">
             <div class="container">
                 <h1>🔧 CC-SWITCH</h1>
-                <p class="subtitle">CLAUDE CODE CONFIGURATION MANAGER v1.0.0</p>
+                <p class="subtitle">CLAUDE CODE CONFIGURATION MANAGER v%[1]s</p>
             </div>
         </header>
         
@@ -101,7 +102,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
                     <span style="color: var(--pixel-green);">●</span> SYSTEM ONLINE 
                     <span style="margin-left: 2rem; color: var(--pixel-teal);">●</span> PROFILES READY
                     <span style="margin-left: 2rem; color: var(--pixel-yellow);">●</span> STANDBY
-                    <span style="float: right;">2025.09.11 | BUILD.001</span>
+                    <span style="float: right;">%[2]s | BUILD.001</span>
                 </div>
                 
                 <nav class="nav-tabs">
@@ -177,7 +178,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
         <footer style="background: var(--dark-bg); color: var(--text-white); padding: 1rem 0; margin-top: 4rem;">
             <div class="container" style="text-align: center;">
                 <p style="font-family: 'Press Start 2P', monospace; font-size: 0.6rem; letter-spacing: 1px;">
-                    CC-SWITCH PIXEL INTERFACE v1.0.0 | 
+                    CC-SWITCH PIXEL INTERFACE v%[1]s | 
                     <span style="color: var(--pixel-orange);">ANTHROPIC</span> | 
                     <span style="color: var(--pixel-teal);">CLAUDE CODE</span>
                 </p>
@@ -186,7 +187,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
     </div>
     <script src="/assets/js/main.js"></script>
 </body>
-</html>`)
+</html>`, common.Version, time.Now().Format("2006.01.02")))
 }
 
 // corsMiddleware adds CORS headers
@@ -208,15 +209,16 @@ func corsMiddleware(next http.Handler) http.Handler {
 // loggingMiddleware logs HTTP requests
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
 		// Wrap the response writer to capture status code
 		wrapper := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(wrapper, r)
 
-		duration := time.Since(start)
-		fmt.Printf("%s %s %d %v\n", r.Method, r.URL.Path, wrapper.statusCode, duration)
+		// HTTP request logging disabled in production
+		// Uncomment below for debugging:
+		// start := time.Now()
+		// duration := time.Since(start)
+		// fmt.Printf("%s %s %d %v\n", r.Method, r.URL.Path, wrapper.statusCode, duration)
 	})
 }
 

@@ -34,7 +34,8 @@ Examples:
   cc-switch test --all              # Test all configurations
   cc-switch test --quick            # Quick connectivity test only
   cc-switch test --verbose          # Show detailed request/response info
-  cc-switch test -r 0               # Retry infinitely until success
+  cc-switch test -r -1              # Retry infinitely until success
+  cc-switch test -r 0               # No retry (default)
   cc-switch test -r 5               # Retry up to 5 times on failure
   cc-switch test -r 3 --retry-interval 5s  # Retry 3 times with 5s interval`,
 	Args: cobra.MaximumNArgs(1),
@@ -47,10 +48,10 @@ func init() {
 	testCmd.Flags().BoolP("interactive", "i", false, "Enter interactive mode")
 	testCmd.Flags().BoolP("verbose", "v", false, "Show detailed request/response information")
 	testCmd.Flags().BoolP("quick", "q", false, "Quick test (basic connectivity only)")
-	testCmd.Flags().String("endpoint", "", "Test specific endpoint (chat, models, auth)")
+	testCmd.Flags().String("endpoint", "", "Test specific endpoint (basic, auth, models, chat)")
 	testCmd.Flags().Duration("timeout", 30*time.Second, "Request timeout")
 	testCmd.Flags().Bool("json", false, "Output results in JSON format")
-	testCmd.Flags().IntP("retry", "r", -1, "Retry on failure (0=infinite, N=max retry count, -1=disabled)")
+	testCmd.Flags().IntP("retry", "r", 0, "Retry on failure (-1=infinite, 0=disabled, N=max retry count)")
 	testCmd.Flags().Duration("retry-interval", 2*time.Second, "Interval between retries")
 }
 
@@ -102,14 +103,19 @@ func runTest(cmd *cobra.Command, args []string) error {
 		Verbose:       cmd.Flag("verbose").Value.String() == "true",
 		JSONOutput:    cmd.Flag("json").Value.String() == "true",
 		Timeout:       parseDuration(cmd.Flag("timeout").Value.String()),
-		RetryEnabled:  retryCount >= 0,
+		RetryEnabled:  retryCount != 0,
 		MaxRetries:    retryCount,
 		RetryInterval: retryInterval,
 	}
 
-	// Parse endpoint filter if provided
-	if endpoint := cmd.Flag("endpoint").Value.String(); endpoint != "" {
-		options.Endpoints = []string{endpoint}
+	// Parse endpoint filter if provided (supports: basic, auth, models, chat)
+	if endpoint := strings.TrimSpace(strings.ToLower(cmd.Flag("endpoint").Value.String())); endpoint != "" {
+		switch endpoint {
+		case "basic", "auth", "models", "chat":
+			options.Endpoints = []string{endpoint}
+		default:
+			return fmt.Errorf("invalid endpoint '%s', valid values: basic, auth, models, chat", endpoint)
+		}
 	}
 
 	// Create UI provider based on mode
@@ -509,7 +515,7 @@ func withRetry(
 
 	attempt := 0
 	maxRetries := options.MaxRetries
-	isInfinite := maxRetries == 0
+	isInfinite := maxRetries == -1
 
 	for {
 		attempt++

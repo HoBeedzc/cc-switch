@@ -11,8 +11,9 @@ import (
 )
 
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all available configurations or templates",
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List all available configurations or templates",
 	Long: `Display all available Claude Code configurations or templates.
 
 Modes:

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"cc-switch/internal/common"
 	"cc-switch/internal/config"
 	"cc-switch/internal/export"
 	"cc-switch/internal/handler"
@@ -108,6 +109,8 @@ func (api *APIHandler) handleProfileOperation(w http.ResponseWriter, r *http.Req
 	switch operation {
 	case "move":
 		api.moveProfile(w, r, profileName)
+	case "copy":
+		api.copyProfile(w, r, profileName)
 	default:
 		api.sendError(w, fmt.Sprintf("Unknown operation: %s", operation), http.StatusBadRequest)
 	}
@@ -313,7 +316,7 @@ func (api *APIHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":      "ok",
 		"initialized": isInitialized,
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-		"version":     "1.0.0",
+		"version":     common.Version,
 	}
 
 	api.sendSuccess(w, health)
@@ -796,6 +799,81 @@ func (api *APIHandler) moveProfile(w http.ResponseWriter, r *http.Request, oldNa
 		"message":  fmt.Sprintf("Profile moved from '%s' to '%s' successfully", oldName, request.NewName),
 		"old_name": oldName,
 		"new_name": request.NewName,
+	})
+}
+
+// copyProfile handles POST /api/profiles/{name}/copy
+func (api *APIHandler) copyProfile(w http.ResponseWriter, r *http.Request, sourceName string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		NewName string `json:"new_name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	// If no new name provided, generate one automatically
+	newName := request.NewName
+	if newName == "" {
+		newName = sourceName + "-copy"
+
+		// If that name exists, add a number
+		counter := 1
+		for {
+			if err := api.handler.ValidateConfigExists(newName); err != nil {
+				// Name doesn't exist, we can use it
+				break
+			}
+			counter++
+			newName = fmt.Sprintf("%s-copy-%d", sourceName, counter)
+			if counter > 100 {
+				api.sendError(w, "Too many copies, please specify a name", http.StatusBadRequest)
+				return
+			}
+		}
+	}
+
+	// Validate new profile name
+	if len(newName) > 255 {
+		api.sendError(w, "Profile name must be 255 characters or less", http.StatusBadRequest)
+		return
+	}
+
+	validName := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if !validName.MatchString(newName) {
+		api.sendError(w, "Profile name can only contain letters, numbers, hyphens, and underscores", http.StatusBadRequest)
+		return
+	}
+
+	// Check if new name already exists
+	if err := api.handler.ValidateConfigExists(newName); err == nil {
+		api.sendError(w, fmt.Sprintf("Profile '%s' already exists", newName), http.StatusConflict)
+		return
+	}
+
+	// Get the source profile content
+	sourceView, err := api.handler.ViewConfig(sourceName, false)
+	if err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to read source profile: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// Create the new profile with the same content
+	if err := api.handler.CreateConfigWithContent(newName, sourceView.Content); err != nil {
+		api.sendError(w, fmt.Sprintf("Failed to create profile copy: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	api.sendSuccess(w, map[string]interface{}{
+		"message":     fmt.Sprintf("Profile '%s' copied to '%s' successfully", sourceName, newName),
+		"source_name": sourceName,
+		"new_name":    newName,
 	})
 }
 

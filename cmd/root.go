@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"cc-switch/internal/common"
+
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +25,7 @@ This tool allows you to:
 - Export configurations to backup files
 - Import configurations from backup files`,
 	SilenceUsage: true,
+	Version:      common.Version,
 }
 
 // Execute 执行根命令
