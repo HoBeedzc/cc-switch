@@ -28,9 +28,26 @@ This tool allows you to:
 	Version:      common.Version,
 }
 
+// skipUpdateNotice determines if update notice should be skipped for certain commands
+var skipUpdateNotice bool
+
 // Execute 执行根命令
 func Execute() error {
-	return rootCmd.Execute()
+	// Start background update check if needed
+	if common.ShouldCheckUpdate() {
+		common.CheckUpdateBackground(nil)
+	}
+
+	// Execute the command
+	err := rootCmd.Execute()
+
+	// Show update notice after command execution (if cached)
+	// Skip for update command (it handles its own update logic)
+	if !skipUpdateNotice {
+		common.PrintUpdateNotice()
+	}
+
+	return err
 }
 
 func init() {
@@ -48,6 +65,8 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(testCmd)
 	rootCmd.AddCommand(webCmd)
+	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(uninstallCmd)
 }
 
 // 检查Claude配置是否存在的助手函数
@@ -59,7 +78,8 @@ func checkClaudeConfig() error {
 
 	claudeDir := filepath.Join(homeDir, ".claude")
 	settingsPath := filepath.Join(claudeDir, "settings.json")
-	emptyModeFile := filepath.Join(claudeDir, ".empty_mode")
+	profilesDir := filepath.Join(claudeDir, "profiles")
+	emptyModeFile := filepath.Join(profilesDir, ".empty_mode")
 
 	// Check if in empty mode - if so, allow the operation
 	if _, err := os.Stat(emptyModeFile); err == nil {
@@ -67,7 +87,6 @@ func checkClaudeConfig() error {
 	}
 
 	// Check for profiles directory (indicates cc-switch is initialized)
-	profilesDir := filepath.Join(claudeDir, "profiles")
 	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
 		return fmt.Errorf("claude configuration not found at %s", settingsPath)
 	}

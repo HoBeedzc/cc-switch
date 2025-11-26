@@ -1101,3 +1101,31 @@ func (api *APIHandler) HandleImport(w http.ResponseWriter, r *http.Request) {
 
 	api.sendSuccess(w, responseData)
 }
+
+// HandleVersion handles /api/version requests
+func (api *APIHandler) HandleVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get current version
+	currentVersion := common.Version
+
+	// Get cached update info (don't make network request)
+	updateInfo := common.GetCachedUpdateInfo()
+
+	response := map[string]interface{}{
+		"current_version": currentVersion,
+	}
+
+	if updateInfo != nil {
+		response["latest_version"] = updateInfo.LatestVersion
+		response["has_update"] = updateInfo.HasUpdate
+	} else {
+		response["latest_version"] = currentVersion
+		response["has_update"] = false
+	}
+
+	api.sendSuccess(w, response)
+}

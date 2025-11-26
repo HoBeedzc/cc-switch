@@ -248,6 +248,21 @@ cc-switch current
 ```
 显示当前激活的配置名称。
 
+#### 更新工具
+```bash
+# 检查更新并询问确认
+cc-switch update
+
+# 自动更新，无需确认
+cc-switch update -y
+cc-switch update --yes
+
+# 仅检查更新，不执行更新
+cc-switch update -c
+cc-switch update --check
+```
+检查新版本并将 cc-switch 更新到最新版本。工具每 24 小时自动在后台检查更新，若有新版本会显示提示。
+
 ### 使用示例
 
 ```bash
@@ -342,6 +357,12 @@ cc-switch rm -i
 cc-switch view -t default
 cc-switch cp -t default my-template
 cc-switch edit -t my-template
+
+# 检查更新
+cc-switch update -c
+
+# 更新到最新版本
+cc-switch update -y
 ```
 
 ### 工作原理
@@ -351,16 +372,18 @@ cc-switch edit -t my-template
 ```
 ~/.claude/
 ├── settings.json          # 当前激活配置（空配置模式下将被移除）
-├── profiles/              # 存储的配置
-│   ├── default.json       # 默认配置
-│   ├── work.json          # 工作配置
-│   ├── personal.json      # 个人配置
-│   ├── templates/         # 配置模板
-│   │   ├── default.json   # 默认模板（不可删除）
-│   │   └── company.json   # 自定义公司模板
-│   └── .empty_backup_settings.json  # 空配置模式下的备份
-├── .current              # 当前配置标记
-└── .empty_mode           # 空配置模式状态文件（空配置模式下存在）
+└── profiles/              # cc-switch 数据目录
+    ├── default.json       # 默认配置
+    ├── work.json          # 工作配置
+    ├── personal.json      # 个人配置
+    ├── templates/         # 配置模板
+    │   ├── default.json   # 默认模板（不可删除）
+    │   └── company.json   # 自定义公司模板
+    ├── .current           # 当前配置标记
+    ├── .history           # 配置切换历史
+    ├── .update_check      # 更新检查缓存
+    ├── .empty_mode        # 空配置模式状态文件（空配置模式下存在）
+    └── .empty_backup_settings.json  # 空配置模式下的备份
 ```
 
 #### 初始化
@@ -424,6 +447,9 @@ cc-switch edit <名称>
 | `view -t <模板>` | 查看模板详情 |
 | `edit <名称>` | 在文本编辑器中编辑配置 |
 | `edit -t <模板>` | 在文本编辑器中编辑模板 |
+| `update` | 检查更新并询问确认 |
+| `update -y, --yes` | 自动更新，无需确认 |
+| `update -c, --check` | 仅检查更新，不执行更新 |
 
 ### 模板系统
 

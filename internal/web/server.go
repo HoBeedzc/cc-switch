@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"cc-switch/internal/common"
@@ -47,6 +48,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/health", api.HandleHealth)
 	mux.HandleFunc("/api/export", api.HandleExport)
 	mux.HandleFunc("/api/import", api.HandleImport)
+	mux.HandleFunc("/api/version", api.HandleVersion)
 
 	// Static file server
 	staticHandler := http.FileServer(http.FS(assets))
@@ -57,7 +59,7 @@ func (s *Server) Start() error {
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", s.host, s.port),
-		Handler:      corsMiddleware(loggingMiddleware(mux)),
+		Handler:      securityHeadersMiddleware(corsMiddleware(s.port, loggingMiddleware(mux))),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -74,7 +76,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // handleIndex serves the main HTML page
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, fmt.Sprintf(`<!DOCTYPE html>
+	fmt.Fprintf(w, `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -91,6 +93,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
                 <p class="subtitle">CLAUDE CODE CONFIGURATION MANAGER v%[1]s</p>
             </div>
         </header>
+        
+        <!-- Update notification banner (hidden by default) -->
+        <div id="update-banner" style="display: none; background: linear-gradient(90deg, var(--pixel-orange), var(--pixel-yellow)); color: var(--dark-bg); padding: 0.75rem 1.5rem; text-align: center; font-family: 'Press Start 2P', monospace; font-size: 0.6rem; letter-spacing: 1px;">
+            <span>💡 NEW VERSION AVAILABLE: <span id="update-current"></span> → <span id="update-latest"></span></span>
+            <span style="margin-left: 1rem;">Run <code style="background: rgba(0,0,0,0.2); padding: 0.2rem 0.5rem; border-radius: 4px;">cc-switch update</code> to upgrade</span>
+            <button id="update-dismiss" style="margin-left: 1rem; background: rgba(0,0,0,0.3); border: none; color: var(--dark-bg); padding: 0.3rem 0.6rem; cursor: pointer; font-family: inherit; font-size: inherit;">✕</button>
+        </div>
         
         <!-- Pixel art decorative border -->
         <div style="height: 8px; background: repeating-linear-gradient(to right, var(--pixel-teal) 0px, var(--pixel-teal) 8px, var(--pixel-purple) 8px, var(--pixel-purple) 16px, var(--pixel-pink) 16px, var(--pixel-pink) 24px, var(--pixel-blue) 24px, var(--pixel-blue) 32px);"></div>
@@ -187,13 +196,52 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
     </div>
     <script src="/assets/js/main.js"></script>
 </body>
-</html>`, common.Version, time.Now().Format("2006.01.02")))
+</html>`, common.Version, time.Now().Format("2006.01.02"))
 }
 
-// corsMiddleware adds CORS headers
-func corsMiddleware(next http.Handler) http.Handler {
+// securityHeadersMiddleware adds security-related HTTP headers
+func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Content Security Policy - allow self and inline styles only
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'")
+		// Prevent MIME type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		// Don't send referrer information
+		w.Header().Set("Referrer-Policy", "no-referrer")
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// corsMiddleware adds CORS headers with strict local origin validation
+func corsMiddleware(port int, next http.Handler) http.Handler {
+	// Build list of allowed local origins (exact matches only)
+	allowedOrigins := []string{
+		fmt.Sprintf("http://localhost:%d", port),
+		fmt.Sprintf("http://127.0.0.1:%d", port),
+		fmt.Sprintf("http://[::1]:%d", port),
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+
+		// Allow same-origin requests by default (when Origin is empty)
+		if origin == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Only allow exact matches against allowed local origins
+		// This prevents attacks like http://localhost-evil.com bypassing CORS
+		if slices.Contains(allowedOrigins, origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		} else {
+			// Origin not in allowed list - reject
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 

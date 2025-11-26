@@ -114,10 +114,13 @@ func NewConfigManagerNoInit() (*ConfigManager, error) {
 	claudeDir := filepath.Join(homeDir, ".claude")
 	profilesDir := filepath.Join(claudeDir, "profiles")
 	templatesDir := filepath.Join(profilesDir, "templates")
-	currentFile := filepath.Join(claudeDir, ".current")
 	settingsFile := filepath.Join(claudeDir, "settings.json")
+
+	// All cc-switch data files are now stored under profiles/ directory
+	// This makes cleanup easier - just remove the profiles/ directory
+	currentFile := filepath.Join(profilesDir, ".current")
 	historyFile := filepath.Join(profilesDir, ".history")
-	emptyModeFile := filepath.Join(claudeDir, ".empty_mode")
+	emptyModeFile := filepath.Join(profilesDir, ".empty_mode")
 
 	cm := &ConfigManager{
 		claudeDir:     claudeDir,
@@ -146,6 +149,50 @@ func (cm *ConfigManager) validateProfileName(name string) error {
 	return nil
 }
 
+// [BACKWARD COMPATIBILITY - TO BE REMOVED IN FUTURE VERSION]
+// migrateOldFiles migrates cc-switch data files from old locations (~/.claude/)
+// to new locations (~/.claude/profiles/) for better organization and easier cleanup.
+// This migration was added to consolidate all cc-switch data under the profiles directory.
+// After sufficient adoption time (2-3 major versions), this function can be safely removed.
+func (cm *ConfigManager) migrateOldFiles() error {
+	// Define old -> new path mappings
+	// Old location: ~/.claude/<file>
+	// New location: ~/.claude/profiles/<file>
+	migrations := map[string]string{
+		filepath.Join(cm.claudeDir, ".current"):    cm.currentFile,   // -> profiles/.current
+		filepath.Join(cm.claudeDir, ".empty_mode"): cm.emptyModeFile, // -> profiles/.empty_mode
+	}
+
+	for oldPath, newPath := range migrations {
+		// Check if old file exists
+		if _, err := os.Stat(oldPath); err != nil {
+			continue // Old file doesn't exist, skip
+		}
+
+		// Check if new file already exists (don't overwrite)
+		if _, err := os.Stat(newPath); err == nil {
+			// New file exists, remove old file to clean up
+			os.Remove(oldPath)
+			continue
+		}
+
+		// Migrate: move old file to new location
+		if err := os.Rename(oldPath, newPath); err != nil {
+			// If rename fails (e.g., cross-device), try copy + delete
+			data, readErr := os.ReadFile(oldPath)
+			if readErr != nil {
+				return fmt.Errorf("failed to read old file %s: %w", oldPath, readErr)
+			}
+			if writeErr := os.WriteFile(newPath, data, 0600); writeErr != nil {
+				return fmt.Errorf("failed to write new file %s: %w", newPath, writeErr)
+			}
+			os.Remove(oldPath) // Clean up old file
+		}
+	}
+
+	return nil
+}
+
 // Initialize 初始化配置目录和默认配置
 func (cm *ConfigManager) Initialize() error {
 	if err := os.MkdirAll(cm.profilesDir, 0755); err != nil {
@@ -154,6 +201,15 @@ func (cm *ConfigManager) Initialize() error {
 
 	if err := os.MkdirAll(cm.templatesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create templates directory: %w", err)
+	}
+
+	// [BACKWARD COMPATIBILITY - TO BE REMOVED IN FUTURE VERSION]
+	// Migrate old files from ~/.claude/ to ~/.claude/profiles/
+	// This migration was added in v1.x.x to consolidate all cc-switch data under profiles/
+	// After sufficient time has passed (e.g., 2-3 major versions), this code can be removed
+	if err := cm.migrateOldFiles(); err != nil {
+		// Migration errors are non-fatal, just log a warning
+		fmt.Fprintf(os.Stderr, "Warning: failed to migrate old files: %v\n", err)
 	}
 
 	if err := cm.initializeDefaultTemplate(); err != nil {

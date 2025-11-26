@@ -248,6 +248,21 @@ cc-switch current
 ```
 Displays the name of the currently active configuration.
 
+#### Update cc-switch
+```bash
+# Check for updates and prompt for confirmation
+cc-switch update
+
+# Automatically update without prompting
+cc-switch update -y
+cc-switch update --yes
+
+# Only check for updates, don't update
+cc-switch update -c
+cc-switch update --check
+```
+Check for new versions and update cc-switch to the latest version. The tool automatically checks for updates once every 24 hours in the background and displays a notice if a new version is available.
+
 ### Examples
 
 ```bash
@@ -342,6 +357,12 @@ cc-switch rm -i
 cc-switch view -t default
 cc-switch cp -t default my-template
 cc-switch edit -t my-template
+
+# Check for updates
+cc-switch update -c
+
+# Update to latest version
+cc-switch update -y
 ```
 
 ### How It Works
@@ -351,16 +372,18 @@ The tool manages configurations in `~/.claude/profiles/` directory:
 ```
 ~/.claude/
 ├── settings.json          # Current active configuration (removed in empty mode)
-├── profiles/              # Stored configurations
-│   ├── default.json       # Default configuration
-│   ├── work.json          # Work configuration
-│   ├── personal.json      # Personal configuration
-│   ├── templates/         # Configuration templates
-│   │   ├── default.json   # Default template (cannot be deleted)
-│   │   └── company.json   # Custom company template
-│   └── .empty_backup_settings.json  # Backup when in empty mode
-├── .current              # Current configuration marker
-└── .empty_mode           # Empty mode state file (present in empty mode)
+└── profiles/              # cc-switch data directory
+    ├── default.json       # Default configuration
+    ├── work.json          # Work configuration
+    ├── personal.json      # Personal configuration
+    ├── templates/         # Configuration templates
+    │   ├── default.json   # Default template (cannot be deleted)
+    │   └── company.json   # Custom company template
+    ├── .current           # Current configuration marker
+    ├── .history           # Configuration switch history
+    ├── .update_check      # Update check cache
+    ├── .empty_mode        # Empty mode state file (present in empty mode)
+    └── .empty_backup_settings.json  # Backup when in empty mode
 ```
 
 #### Initialization
@@ -424,6 +447,9 @@ Opens the configuration in your default text editor for modification.
 | `view -t <template>` | View template details |
 | `edit <name>` | Edit configuration in text editor |
 | `edit -t <template>` | Edit template in text editor |
+| `update` | Check for updates and prompt for confirmation |
+| `update -y, --yes` | Automatically update without prompting |
+| `update -c, --check` | Only check for updates, don't update |
 
 ### Template System
 

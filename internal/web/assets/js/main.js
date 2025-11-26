@@ -19,6 +19,9 @@ class CCSwitch {
         // Setup event listeners
         this.setupEventListeners();
         
+        // Check for updates
+        this.checkForUpdates();
+        
         // Show profiles tab by default
         this.showSection('profiles');
         
@@ -1827,6 +1830,44 @@ class CCSwitch {
         }
         
         return `${size.toFixed(1)} ${units[unitIndex]}`;
+    }
+
+    async checkForUpdates() {
+        try {
+            const response = await this.apiCall('/api/version');
+            const data = response.data;
+            
+            if (data.has_update) {
+                const banner = document.getElementById('update-banner');
+                const currentSpan = document.getElementById('update-current');
+                const latestSpan = document.getElementById('update-latest');
+                const dismissBtn = document.getElementById('update-dismiss');
+                
+                if (banner && currentSpan && latestSpan) {
+                    currentSpan.textContent = `v${data.current_version}`;
+                    latestSpan.textContent = `v${data.latest_version}`;
+                    banner.style.display = 'block';
+                    
+                    // Setup dismiss button
+                    if (dismissBtn) {
+                        dismissBtn.addEventListener('click', () => {
+                            banner.style.display = 'none';
+                            // Store dismissal in session storage
+                            sessionStorage.setItem('update-dismissed', data.latest_version);
+                        });
+                    }
+                    
+                    // Check if already dismissed this version
+                    const dismissedVersion = sessionStorage.getItem('update-dismissed');
+                    if (dismissedVersion === data.latest_version) {
+                        banner.style.display = 'none';
+                    }
+                }
+            }
+        } catch (error) {
+            // Silently ignore update check errors
+            console.log('Update check skipped:', error.message);
+        }
     }
 }
 
