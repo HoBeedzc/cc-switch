@@ -4,6 +4,9 @@ class CCSwitch {
         this.profiles = [];
         this.templates = [];
         this.isEmptyMode = false;
+        this.toastContainer = null;
+        this.toasts = new Map();
+        this.toastId = 0;
         this.init();
     }
 
@@ -327,9 +330,17 @@ class CCSwitch {
     }
 
     async deleteProfile(profileName) {
-        if (!confirm(`Are you sure you want to delete configuration "${profileName}"?`)) {
-            return;
-        }
+        const confirmed = await this.showConfirm(
+            `Are you sure you want to delete configuration "${profileName}"?`,
+            {
+                title: 'Delete Configuration',
+                type: 'danger',
+                confirmText: 'Delete',
+                confirmClass: 'btn-danger'
+            }
+        );
+        
+        if (!confirmed) return;
 
         try {
             const response = await this.apiCall(`/api/profiles/${encodeURIComponent(profileName)}`, {
@@ -1065,7 +1076,11 @@ class CCSwitch {
             this.renderProfiles();
             
             // Optional: auto-switch to the new profile
-            if (confirm(`Switch to the new configuration "${name}"?`)) {
+            const shouldSwitch = await this.showConfirm(
+                `Switch to the new configuration "${name}"?`,
+                { title: 'Switch Configuration', type: 'info', confirmText: 'Switch' }
+            );
+            if (shouldSwitch) {
                 await this.switchProfile(name);
             }
             
@@ -1118,14 +1133,272 @@ class CCSwitch {
         return div.innerHTML;
     }
 
-    showSuccess(message) {
-        // Simple alert for now - can be replaced with proper notifications
-        alert(`✅ ${message}`);
+    // ==================== Toast Notification System ====================
+    
+    initToastContainer() {
+        if (this.toastContainer) return;
+        
+        this.toastContainer = document.createElement('div');
+        this.toastContainer.className = 'toast-container';
+        document.body.appendChild(this.toastContainer);
     }
 
-    showError(message) {
-        // Simple alert for now - can be replaced with proper notifications
-        alert(`❌ ${message}`);
+    showToast(message, type = 'info', options = {}) {
+        this.initToastContainer();
+        
+        const {
+            title = this.getToastTitle(type),
+            duration = 4000,
+            closable = true,
+            icon = this.getToastIcon(type)
+        } = options;
+
+        const id = ++this.toastId;
+        
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.dataset.toastId = id;
+        
+        toast.innerHTML = `
+            <div class="toast-icon">${icon}</div>
+            <div class="toast-content">
+                <div class="toast-title">${this.escapeHtml(title)}</div>
+                <div class="toast-message">${this.escapeHtml(message)}</div>
+            </div>
+            ${closable ? '<button class="toast-close" aria-label="Close">×</button>' : ''}
+            ${duration > 0 ? `<div class="toast-progress" style="animation-duration: ${duration}ms"></div>` : ''}
+        `;
+        
+        // Setup close button
+        if (closable) {
+            const closeBtn = toast.querySelector('.toast-close');
+            closeBtn.addEventListener('click', () => this.removeToast(id));
+        }
+        
+        this.toastContainer.appendChild(toast);
+        this.toasts.set(id, toast);
+        
+        // Auto-remove after duration
+        if (duration > 0) {
+            setTimeout(() => this.removeToast(id), duration);
+        }
+        
+        return id;
+    }
+
+    removeToast(id) {
+        const toast = this.toasts.get(id);
+        if (!toast) return;
+        
+        toast.classList.add('toast-removing');
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+            this.toasts.delete(id);
+        }, 300);
+    }
+
+    getToastTitle(type) {
+        const titles = {
+            success: 'Success',
+            error: 'Error',
+            warning: 'Warning',
+            info: 'Info',
+            loading: 'Loading'
+        };
+        return titles[type] || 'Notice';
+    }
+
+    getToastIcon(type) {
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️',
+            loading: '⏳'
+        };
+        return icons[type] || 'ℹ️';
+    }
+
+    showSuccess(message, options = {}) {
+        return this.showToast(message, 'success', options);
+    }
+
+    showError(message, options = {}) {
+        return this.showToast(message, 'error', { duration: 6000, ...options });
+    }
+
+    showWarning(message, options = {}) {
+        return this.showToast(message, 'warning', options);
+    }
+
+    showInfo(message, options = {}) {
+        return this.showToast(message, 'info', options);
+    }
+
+    showLoading(message, options = {}) {
+        return this.showToast(message, 'loading', { duration: 0, closable: false, ...options });
+    }
+
+    // ==================== Custom Dialog System ====================
+    
+    showConfirm(message, options = {}) {
+        return new Promise((resolve) => {
+            const {
+                title = 'Confirm',
+                confirmText = 'Confirm',
+                cancelText = 'Cancel',
+                type = 'warning', // 'warning', 'danger', 'info'
+                confirmClass = type === 'danger' ? 'btn-danger' : 'btn-primary'
+            } = options;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'dialog-overlay';
+            
+            const dialogClass = type ? `dialog-${type}` : '';
+            
+            overlay.innerHTML = `
+                <div class="dialog-box ${dialogClass}">
+                    <div class="dialog-header">
+                        <h3>${this.escapeHtml(title)}</h3>
+                    </div>
+                    <div class="dialog-body">
+                        <p class="dialog-message">${this.escapeHtml(message)}</p>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="btn btn-secondary dialog-cancel">${this.escapeHtml(cancelText)}</button>
+                        <button class="btn ${confirmClass} dialog-confirm">${this.escapeHtml(confirmText)}</button>
+                    </div>
+                </div>
+            `;
+
+            // Keyboard handling - defined before closeDialog so it can be referenced
+            const handleKeydown = (e) => {
+                if (e.key === 'Escape') {
+                    closeDialog(false);
+                } else if (e.key === 'Enter') {
+                    closeDialog(true);
+                }
+            };
+
+            const closeDialog = (result) => {
+                document.removeEventListener('keydown', handleKeydown);
+                overlay.remove();
+                resolve(result);
+            };
+
+            // Event listeners
+            overlay.querySelector('.dialog-cancel').addEventListener('click', () => closeDialog(false));
+            overlay.querySelector('.dialog-confirm').addEventListener('click', () => closeDialog(true));
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeDialog(false);
+            });
+
+            document.addEventListener('keydown', handleKeydown);
+
+            document.body.appendChild(overlay);
+            overlay.querySelector('.dialog-confirm').focus();
+        });
+    }
+
+    showPrompt(message, options = {}) {
+        return new Promise((resolve) => {
+            const {
+                title = 'Input',
+                defaultValue = '',
+                placeholder = '',
+                confirmText = 'OK',
+                cancelText = 'Cancel',
+                type = 'info',
+                validation = null // Optional validation function
+            } = options;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'dialog-overlay';
+            
+            const dialogClass = type ? `dialog-${type}` : '';
+            
+            overlay.innerHTML = `
+                <div class="dialog-box ${dialogClass}">
+                    <div class="dialog-header">
+                        <h3>${this.escapeHtml(title)}</h3>
+                    </div>
+                    <div class="dialog-body">
+                        <p class="dialog-message">${this.escapeHtml(message)}</p>
+                        <input type="text" class="dialog-input" 
+                               value="${this.escapeHtml(defaultValue)}" 
+                               placeholder="${this.escapeHtml(placeholder)}">
+                        <div class="dialog-validation-error" style="color: var(--danger-color); font-size: 0.85rem; margin-top: 0.5rem; display: none;"></div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="btn btn-secondary dialog-cancel">${this.escapeHtml(cancelText)}</button>
+                        <button class="btn btn-primary dialog-confirm">${this.escapeHtml(confirmText)}</button>
+                    </div>
+                </div>
+            `;
+
+            const input = overlay.querySelector('.dialog-input');
+            const errorDiv = overlay.querySelector('.dialog-validation-error');
+            const confirmBtn = overlay.querySelector('.dialog-confirm');
+
+            // Keyboard handling - defined before closeDialog so it can be referenced
+            const handleKeydown = (e) => {
+                if (e.key === 'Escape') {
+                    closeDialog(null);
+                }
+            };
+
+            const closeDialog = (result) => {
+                document.removeEventListener('keydown', handleKeydown);
+                overlay.remove();
+                resolve(result);
+            };
+
+            const validateAndConfirm = () => {
+                const value = input.value.trim();
+                
+                if (validation) {
+                    const error = validation(value);
+                    if (error) {
+                        errorDiv.textContent = error;
+                        errorDiv.style.display = 'block';
+                        input.focus();
+                        return;
+                    }
+                }
+                
+                closeDialog(value || null);
+            };
+
+            // Event listeners
+            overlay.querySelector('.dialog-cancel').addEventListener('click', () => closeDialog(null));
+            confirmBtn.addEventListener('click', validateAndConfirm);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeDialog(null);
+            });
+
+            // Clear error on input
+            input.addEventListener('input', () => {
+                errorDiv.style.display = 'none';
+            });
+
+            // Enter key handling on input (needs to validate before closing)
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    validateAndConfirm();
+                }
+            });
+
+            // Document-level Escape key handling (works regardless of focus)
+            document.addEventListener('keydown', handleKeydown);
+
+            document.body.appendChild(overlay);
+            input.focus();
+            input.select();
+        });
     }
 
     setupEventListeners() {
@@ -1369,15 +1642,13 @@ class CCSwitch {
     }
     
     async createTemplate() {
-        const templateName = prompt('Enter template name:');
-        if (!templateName) return;
+        const templateName = await this.showPrompt('Enter template name:', {
+            title: 'Create Template',
+            placeholder: 'e.g., my-template',
+            validation: (value) => this.validateTemplateName(value)
+        });
         
-        // Validate template name
-        const validationError = this.validateTemplateName(templateName);
-        if (validationError) {
-            this.showError(validationError);
-            return;
-        }
+        if (!templateName) return;
 
         try {
             await this.apiCall('/api/templates', {
@@ -1494,15 +1765,14 @@ class CCSwitch {
     }
 
     async copyTemplate(templateName) {
-        const newName = prompt(`Enter name for copy of '${templateName}':`);
-        if (!newName) return;
+        const newName = await this.showPrompt(`Enter name for copy of '${templateName}':`, {
+            title: 'Copy Template',
+            placeholder: 'e.g., my-template-copy',
+            defaultValue: `${templateName}-copy`,
+            validation: (value) => this.validateTemplateName(value)
+        });
         
-        // Validate template name
-        const validationError = this.validateTemplateName(newName);
-        if (validationError) {
-            this.showError(validationError);
-            return;
-        }
+        if (!newName) return;
 
         try {
             await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}/copy`, {
@@ -1520,9 +1790,17 @@ class CCSwitch {
 
 
     async deleteTemplate(templateName) {
-        if (!confirm(`Are you sure you want to delete template "${templateName}"?`)) {
-            return;
-        }
+        const confirmed = await this.showConfirm(
+            `Are you sure you want to delete template "${templateName}"?`,
+            {
+                title: 'Delete Template',
+                type: 'danger',
+                confirmText: 'Delete',
+                confirmClass: 'btn-danger'
+            }
+        );
+        
+        if (!confirmed) return;
 
         try {
             await this.apiCall(`/api/templates/${encodeURIComponent(templateName)}`, {
@@ -1538,7 +1816,15 @@ class CCSwitch {
     }
 
     async createProfileFromTemplate(templateName) {
-        const profileName = prompt(`Enter name for new configuration from template '${templateName}':`);
+        const profileName = await this.showPrompt(
+            `Enter name for new configuration from template '${templateName}':`,
+            {
+                title: 'Create Configuration',
+                placeholder: 'e.g., my-config',
+                validation: (value) => this.validateProfileName(value)
+            }
+        );
+        
         if (!profileName) return;
 
         try {

@@ -1,6 +1,6 @@
 {
   "name": "@hobeeliu/cc-switch",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Claude Code configuration switcher - manage and switch between different Claude Code configurations",
   "bin": {
     "cc-switch": "./bin/cc-switch.js"
@@ -10,11 +10,11 @@
     "preuninstall": "node scripts/preuninstall.js"
   },
   "optionalDependencies": {
-    "@hobeeliu/cc-switch-darwin-x64": "1.1.0",
-    "@hobeeliu/cc-switch-darwin-arm64": "1.1.0",
-    "@hobeeliu/cc-switch-linux-x64": "1.1.0",
-    "@hobeeliu/cc-switch-linux-arm64": "1.1.0",
-    "@hobeeliu/cc-switch-win32-x64": "1.1.0"
+    "@hobeeliu/cc-switch-darwin-x64": "1.1.1",
+    "@hobeeliu/cc-switch-darwin-arm64": "1.1.1",
+    "@hobeeliu/cc-switch-linux-x64": "1.1.1",
+    "@hobeeliu/cc-switch-linux-arm64": "1.1.1",
+    "@hobeeliu/cc-switch-win32-x64": "1.1.1"
   },
   "repository": {
     "type": "git",

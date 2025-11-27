@@ -202,8 +202,18 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 // securityHeadersMiddleware adds security-related HTTP headers
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Content Security Policy - allow self and inline styles only
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'")
+		// Content Security Policy
+		// - Allow self for default resources
+		// - Allow inline scripts and event handlers (needed for onclick etc.)
+		// - Allow Google Fonts for stylesheets and font files
+		// - Allow inline styles (needed for dynamic styling)
+		csp := "default-src 'self'; " +
+			"script-src 'self' 'unsafe-inline'; " +
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+			"font-src 'self' https://fonts.gstatic.com; " +
+			"img-src 'self' data:; " +
+			"connect-src 'self'"
+		w.Header().Set("Content-Security-Policy", csp)
 		// Prevent MIME type sniffing
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		// Don't send referrer information

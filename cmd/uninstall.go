@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	uninstallFull bool
-	uninstallYes  bool
+	uninstallFull   bool
+	uninstallYes    bool
+	uninstallDryRun bool
 )
 
 var uninstallCmd = &cobra.Command{
@@ -36,6 +37,7 @@ Use --full to also remove all configuration profiles (but still keeps settings.j
 func init() {
 	uninstallCmd.Flags().BoolVarP(&uninstallFull, "full", "f", false, "Remove all configurations (profiles)")
 	uninstallCmd.Flags().BoolVarP(&uninstallYes, "yes", "y", false, "Skip confirmation prompt")
+	uninstallCmd.Flags().BoolVar(&uninstallDryRun, "dry-run", false, "Preview what would be removed without actually removing anything")
 }
 
 func runUninstall(cmd *cobra.Command, args []string) error {
@@ -55,9 +57,13 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	installMethod := detectInstallMethod()
 
 	// Show confirmation
-	if !uninstallYes {
+	if !uninstallYes || uninstallDryRun {
 		fmt.Println()
-		fmt.Println("🗑️  Uninstall CC-Switch")
+		if uninstallDryRun {
+			fmt.Println("🔍 [DRY RUN] Uninstall CC-Switch Preview")
+		} else {
+			fmt.Println("🗑️  Uninstall CC-Switch")
+		}
 		fmt.Println()
 		fmt.Println("This will:")
 		fmt.Printf("  ✓ Remove cc-switch binary (%s)\n", ccSwitchBinDir)
@@ -77,6 +83,12 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 			fmt.Println("Detected: npm installation")
 			fmt.Println("Will run: npm uninstall -g @hobeeliu/cc-switch")
 			fmt.Println()
+		}
+
+		// In dry run mode, skip confirmation and just show preview
+		if uninstallDryRun {
+			fmt.Println("🔍 [DRY RUN] No changes will be made.")
+			return nil
 		}
 
 		fmt.Print("Are you sure? [y/N]: ")
